@@ -1,14 +1,77 @@
 import pandas as pd
 import psycopg2 as pg
+from psycopg2 import sql
 from sqlalchemy import create_engine
 from db_utils.utils import *
+import io 
+
+
 
 # ------------------------------
 # Create/Clean Pandas DataFrame:
 # ------------------------------
 
 # Create variable for csv file path to recipe dataset
-file_path = '/Users/mkayeterry/Desktop/dataset/full_dataset.csv'
+file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
+
+# Read CSV file containing data
+recipes = pd.read_csv(file_path)
+
+recipes = clean_raw_recipes(recipes, 'data/dish_recipes.parquet')
+
+# -----------------------------------
+# Create table and insert data into Postgres
+# -----------------------------------
+
+# connect to PostgreSQL server
+conn = pg.connect(
+    host     = 'localhost', 
+    port     = '5432', 
+    dbname   = 'postgres', 
+    user     = 'anguswatters', 
+    password = '1224')
+
+# make cursor for DB connection
+cursor = conn.cursor()
+
+# name table
+table_name = "dish_db"
+
+# SQL query to create table if it doesn't exist
+create_table_query = sql.SQL("""
+    CREATE TABLE IF NOT EXISTS {} (
+        dish TEXT,
+        ingredients TEXT[],
+        split_ingredients TEXT[],
+        quantities TEXT[],
+        directions TEXT[],
+        link CHAR(255),
+        ID INTEGER
+    )
+""").format(sql.Identifier(table_name))
+
+# excute create table command
+cursor.execute(create_table_query)
+
+# commit create table querry to DB
+conn.commit()
+
+# database engine
+engine = create_engine("postgresql://anguswatters:1224@localhost:5432/postgres")
+
+# Write recipes data to DB by appending to already created DB above
+recipes.head().to_sql(table_name, engine, if_exists='append', index=False)
+
+# close cursor and connection
+cursor.close()
+conn.close()
+
+# ------------------------------
+# Create/Clean Pandas DataFrame:
+# ------------------------------
+
+# Create variable for csv file path to recipe dataset
+file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
 
 # Read CSV file containing data
 read_recipes = pd.read_csv(file_path)
@@ -38,7 +101,6 @@ recipes.to_parquet('data/dish_recipes.parquet')
 
 # Save image links DataFrame to a Parquet file
 links.to_parquet('data/image_links.parquet')
-
 
 # -------------------------------------------
 # Load Pandas DataFrame to Postgres Database:
