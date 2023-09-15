@@ -1,17 +1,5 @@
 import re
-
-# https://cookbooks.com/Recipe-Details.aspx?id=44874
-# scraper = scrape_me("https://www.food.com/recipe/cherry-almond-crisp-290252")
-# scraper = scrape_me("https://cookbooks.com/Recipe-Details.aspx?id=44874")
-# scraper = scrape_me("")
-
-# # Q: What if the recipe site I want to extract information from is not listed below?
-# # A: You can give it a try with the wild_mode option! If there is Schema/Recipe available it will work just fine.
-# scraper = scrape_me('https://www.feastingathome.com/tomato-risotto/', wild_mode=True)
-
-# scraper.host()
-# scraper.title()
-# scraper.image()
+import pandas as pd
 
 def clean_text(text):
     """
@@ -55,23 +43,24 @@ def split_text(text):
     text = ' '.join(text).split()
     return text
 
-def clean_raw_recipes(df, save_path = None):
 
-    """Clean up raw recipes dataset and save to a folder as parquet
+def clean_raw_data(df, save_path = None):
+    """
+    Clean up raw dataset and save to a folder as parquet.
 
-    df (pandas.DataFrame)
-    save_path (str) path to save folder (must be .parquet file)
+    Args:
+        df (pandas.DataFrame): Raw data to be cleaned.
+        save_path (str): Path to save folder (must be .parquet file).
 
     Returns:
         pandas.DataFrame
     """
-
     # Drop unnecessary columns and rename
     df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
     df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients'})
 
     # Add a unique 'ID' column to the DataFrame
-    df['ID'] = pd.RangeIndex(start=1, stop=len(df) + 1)
+    df['id'] = pd.RangeIndex(start=1, stop=len(df) + 1)
 
     # Call clean_text function to clean and preprocess 'ingredients' column
     df['ingredients'] = df['ingredients'].apply(clean_text)
@@ -80,38 +69,10 @@ def clean_raw_recipes(df, save_path = None):
     df['split_ingredients'] = df['ingredients'].apply(split_text)
 
     # Reorder columns in the DataFrame
-    df = df[['dish', 'ingredients', 'split_ingredients', 'quantities', 'directions', 'link', 'ID']]
+    df = df[['dish', 'ingredients', 'split_ingredients']]
+    # df = df[['dish', 'ingredients', 'split_ingredients', 'quantities', 'directions', 'link', 'id']]
 
     if save_path:
         df.to_parquet(save_path)
 
     return df
-
-# def execute_sql(connection, query):
-#     """
-#     Connect to PostgreSQL server annd execute given queries.
-
-#     Args:
-#         connections (dict): Connection variables to connect to PostgreSQL Database.
-
-#         commands (lst): Queries to be executed.
-#     """
-#     # Connect to the server
-#     conn = pg.connect(
-#         host     = connection['host'], 
-#         port     = connection['port'], 
-#         dbname   = connection['dbname'], 
-#         user     = connection['user'], 
-#         password = connection['password'])
-
-#     # Create cursor object to interact with the database
-#     cur = conn.cursor()
-
-#     cur.execute(query)
-
-#     # Commit changes to the database
-#     conn.commit()
-
-#     # Close cursor and connection
-#     cur.close()
-#     conn.close()
