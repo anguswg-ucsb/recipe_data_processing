@@ -15,7 +15,7 @@ file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
 read_recipes = pd.read_csv(file_path)
 
 # Clean pandas dataframe and save to parquet
-recipes = clean_raw_data(read_recipes.head(), 'data/dish_recipes.parquet')
+recipes = clean_raw_data(read_recipes, 'data/dish_recipes.parquet')
 
 # ------------------------------------------
 # Create Table and Insert Data into Postgres

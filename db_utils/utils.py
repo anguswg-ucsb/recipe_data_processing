@@ -71,17 +71,25 @@ def clean_raw_data(df, save_path = None):
     df['quantities'] = df['quantities'].apply(ast.literal_eval)
     df['directions'] = df['directions'].apply(ast.literal_eval)
 
-    # create a temporary "tmp_ingredients" column and to then split in the next step below
-    df['tmp_ingredients'] = df['ingredients'].apply(clean_text)
+    # Apply the function to each row in the list_column
+    df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[^A-Za-z ]', '', s).strip() for s in x])
 
     # split up the words in the list of ingredients
     # Call split_text function to split cleaned 'ingredients' column, creating a new 'split_ingredients' column
-    df['split_ingredients'] = df['tmp_ingredients'].apply(split_text)
+    df['split_ingredients'] = df['ingredients'].apply(lambda x: " ".join(x).split())
+    # df['split_ingredients'] = df['tmp_ingredients'].apply(split_text)
 
-    
     # Reorder columns in the DataFrame
     df = df[['dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
     # df = df[['dish', 'ingredients', 'split_ingredients', 'quantities', 'directions', 'link', 'id']]
+
+    # any dishes with missing values, replace with the word "missing"
+    df['dish'] = df['dish'].str.replace(r'[\x00-\x19]', '').replace('', 'missing')
+
+    # santize list columns by removing unicode values
+    df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
+    df['quantities'] = df['quantities'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
+    df['directions'] = df['directions'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
 
     if save_path:
         df.to_parquet(save_path)
