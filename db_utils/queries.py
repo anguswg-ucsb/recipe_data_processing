@@ -27,7 +27,7 @@ query = sql.SQL("""
     )""")
 
 # Specify ingredient to search
-ingredient_to_search = '%chick%'
+ingredient_to_search = '%chicken%'
 
 # Execute the query with the specified ingredient
 cur.execute(query, (ingredient_to_search,))

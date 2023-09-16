@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+import ast
 
 def clean_text(text):
     """
@@ -11,18 +12,19 @@ def clean_text(text):
     Returns:
         list: A list of cleaned and lowercase text elements.
     """
-    # Split text using double quotation marks as separators
-    clean_text = re.split('"', text)
+    
+    # # Split text using double quotation marks as separators
+    # clean_text = re.split('"', text)
     
     # Iterate through split text, removing non-alphanumeric characters
-    for idx, val in enumerate(clean_text):
-        clean_text[idx] = re.sub('[^A-Za-z0-9 ]+', '', val)
+    for idx, val in enumerate(text):
+        text[idx] = re.sub('[^A-Za-z0-9 ]+', '', val)
     
     # Create new_text list to store cleaned and lowercase text
     new_text = []
 
     # Iterate through cleaned text, appending to new_text if not empty
-    for i in clean_text:
+    for i in text:
         if i.strip():
             new_text.append(i.lower())
     
@@ -55,21 +57,30 @@ def clean_raw_data(df, save_path = None):
     Returns:
         pandas.DataFrame
     """
+
     # Drop unnecessary columns and rename
     df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
     df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients'})
 
-    # Add a unique 'ID' column to the DataFrame
-    df['id'] = pd.RangeIndex(start=1, stop=len(df) + 1)
+    # # Add a unique 'ID' column to the DataFrame
+    # df['id'] = pd.RangeIndex(start=1, stop=len(df) + 1)
 
     # Call clean_text function to clean and preprocess 'ingredients' column
-    df['ingredients'] = df['ingredients'].apply(clean_text)
+    # convert the stringified list into a list for the ingredients, NER, and directions columns
+    df['ingredients'] = df['ingredients'].apply(ast.literal_eval)
+    df['quantities'] = df['quantities'].apply(ast.literal_eval)
+    df['directions'] = df['directions'].apply(ast.literal_eval)
 
+    # create a temporary "tmp_ingredients" column and to then split in the next step below
+    df['tmp_ingredients'] = df['ingredients'].apply(clean_text)
+
+    # split up the words in the list of ingredients
     # Call split_text function to split cleaned 'ingredients' column, creating a new 'split_ingredients' column
-    df['split_ingredients'] = df['ingredients'].apply(split_text)
+    df['split_ingredients'] = df['tmp_ingredients'].apply(split_text)
 
+    
     # Reorder columns in the DataFrame
-    df = df[['dish', 'ingredients', 'split_ingredients']]
+    df = df[['dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
     # df = df[['dish', 'ingredients', 'split_ingredients', 'quantities', 'directions', 'link', 'id']]
 
     if save_path:
