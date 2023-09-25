@@ -163,3 +163,22 @@ cython_debug/
 
 # Large Datasets
 data/
+
+rest_api/.env
+
+rest_api/config.py
+
+# terraform folder ignore
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+.terraform.lock.hcl
+.terraform/
+tfplan
+
+# Ignore all .tf files
+*.tf
+*.tfvars
+
+# Except for main.tf
+!main.tf
