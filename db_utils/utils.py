@@ -46,13 +46,12 @@ def split_text(text):
     return text
 
 
-def clean_raw_data(df, save_path = None):
+def clean_raw_data(df):
     """
     Clean up raw dataset and save to a folder as parquet.
 
     Args:
         df (pandas.DataFrame): Raw data to be cleaned.
-        save_path (str): Path to save folder (must be .parquet file).
 
     Returns:
         pandas.DataFrame
@@ -90,8 +89,5 @@ def clean_raw_data(df, save_path = None):
     df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
     df['quantities'] = df['quantities'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
     df['directions'] = df['directions'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
-
-    if save_path:
-        df.to_parquet(save_path)
 
     return df
