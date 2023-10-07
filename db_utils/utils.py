@@ -1,6 +1,8 @@
 import re
 import pandas as pd
 import ast
+import numpy as np
+import json
 
 def clean_text(text):
     """
@@ -56,7 +58,7 @@ def clean_raw_data(df):
     Returns:
         pandas.DataFrame
     """
-
+    
     # Drop unnecessary columns and rename
     df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
     df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients'})
@@ -78,8 +80,8 @@ def clean_raw_data(df):
     df['split_ingredients'] = df['ingredients'].apply(lambda x: " ".join(x).split())
     # df['split_ingredients'] = df['tmp_ingredients'].apply(split_text)
 
-    # Reorder columns in the DataFrame
-    df = df[['dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
+    # # Reorder columns in the DataFrame
+    # df = df[['dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
     # df = df[['dish', 'ingredients', 'split_ingredients', 'quantities', 'directions', 'link', 'id']]
 
     # any dishes with missing values, replace with the word "missing"
@@ -89,5 +91,67 @@ def clean_raw_data(df):
     df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
     df['quantities'] = df['quantities'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
     df['directions'] = df['directions'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
+
+    df['n'] = np.arange(len(df))
+
+    # df['uid'] = df['dish'].apply(lambda x: "".join([re.sub('[^A-Za-z0-9]+', '', s).strip().lower() for s in x]))
+
+    df['uid']  = df['dish'].str.lower()
+    df['uid'] = df['uid'].str.replace('\W', '', regex=True)
+    df['uid'] = df['uid'] + "_" + df['n'].astype(str)
+
+    # Reorder columns in the DataFrame
+    df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
+    
+    return df
+
+def fix_list_cols(df):
+    df['ingredients'] = df['ingredients'].apply(set)
+    df['directions'] = df['directions'].apply(set)
+    df['quantities'] = df['quantities'].apply(set)
+    df['split_ingredients'] = df['split_ingredients'].apply(set)
+
+    return df
+
+def json_dump_list_cols(df):
+    df['ingredients'] = df['ingredients'].apply(json.dumps)
+    df['directions'] = df['directions'].apply(json.dumps)
+    df['quantities'] = df['quantities'].apply(json.dumps)
+    df['split_ingredients'] = df['split_ingredients'].apply(json.dumps)
+
+    return df
+
+def list_to_json_dump(df):
+
+    # conversion function:
+    def dict2json(dictionary):
+        return json.dumps(dictionary, ensure_ascii=False)
+
+    # df["ingredients_json"] = df.apply(lambda row: {"ingredients":row['ingredients']}, axis=1)
+    # df["split_ingredients_json"] = df.apply(lambda row: {"split_ingredients":row['split_ingredients']}, axis=1)
+    # df["quantities_json"] = df.apply(lambda row: {"quantities":row['quantities']}, axis=1)
+    # df["directions_json"] = df.apply(lambda row: {"directions":row['directions']}, axis=1)
+
+
+    # df["ingredients_json"] = df.ingredients_json.map(dict2json)
+    # df["split_ingredients_json"] = df.split_ingredients_json.map(dict2json)
+    # df["quantities_json"] = df.quantities_json.map(dict2json)
+    # df["directions_json"] = df.directions_json.map(dict2json)
+    df["ingredients"] = df.apply(lambda row: {"ingredients":row['ingredients']}, axis=1)
+    df["split_ingredients"] = df.apply(lambda row: {"split_ingredients":row['split_ingredients']}, axis=1)
+    df["quantities"] = df.apply(lambda row: {"quantities":row['quantities']}, axis=1)
+    df["directions"] = df.apply(lambda row: {"directions":row['directions']}, axis=1)
+
+
+    df["ingredients"] = df.ingredients.map(dict2json)
+    df["split_ingredients"] = df.split_ingredients.map(dict2json)
+    df["quantities"] = df.quantities.map(dict2json)
+    df["directions"] = df.directions.map(dict2json)
+
+    # df['ingredients'] = df['ingredients'].apply(lambda x: "{" + ", ".join(x) + "}")
+    # df['ingredients'] = df['ingredients'].apply(lambda x: json.dumps(x))
+    # df['split_ingredients'] = df['split_ingredients'].apply(lambda x: json.dumps(x))
+    # df['quantities'] = df['quantities'].apply(lambda x: json.dumps(x))
+    # df['directions'] = df['directions'].apply(lambda x: json.dumps(x))
 
     return df

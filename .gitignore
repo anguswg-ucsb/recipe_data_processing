@@ -182,3 +182,5 @@ tfplan
 
 # Except for main.tf
 !main.tf
+
+variables.tf

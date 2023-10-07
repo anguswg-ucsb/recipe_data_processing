@@ -3,6 +3,8 @@ import psycopg2 as pg
 from sqlalchemy import create_engine
 from db_utils.utils import *
 from psycopg2 import sql
+import numpy as np
+import json
 
 # ------------------------------
 # Create/Clean Pandas DataFrame:
@@ -14,12 +16,33 @@ file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
 # Read CSV file containing data into pandas dataframe
 read_recipes = pd.read_csv(file_path)
 
+# recipes2 = clean_raw_data(read_recipes.head(10))
+# recipes2 = list_to_json_dump(recipes2)
+# list_to_json_dump(recipes2).columns
+
 # Clean pandas dataframe and save to parquet
 recipes = clean_raw_data(read_recipes)
 
-recipes.to_parquet('data/dish_recipes.parquet')
-recipes.to_csv('data/dish_recipes.csv')
+# make list columns into sets for insertion into postgres DB
+recipes = list_to_json_dump(recipes)
+# recipes = fix_list_cols(recipes)
+# recipes.ingredients.values[0]
 
+recipes.to_parquet('data/dish_recipes.parquet')
+recipes.to_csv('data/dish_recipes.csv', index=False)
+
+df = recipes.head(10000)
+df.to_csv('data/dish_recipes2.csv', index=False)
+
+# df
+# df.replace({'"': "'"}, regex=True)
+# Explode out dataset into long format
+
+recipes_exp = recipes[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
+recipes_exp.to_csv('data/dish_recipes_long.csv', index=False)
+
+df_exp = df[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
+df_exp.to_csv('data/dish_recipes_long2.csv', index=False)
 # ------------------------------------------
 # Create Table and Insert Data into Postgres
 # ------------------------------------------
