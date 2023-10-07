@@ -16,33 +16,23 @@ file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
 # Read CSV file containing data into pandas dataframe
 read_recipes = pd.read_csv(file_path)
 
-# recipes2 = clean_raw_data(read_recipes.head(10))
-# recipes2 = list_to_json_dump(recipes2)
-# list_to_json_dump(recipes2).columns
-
 # Clean pandas dataframe and save to parquet
 recipes = clean_raw_data(read_recipes)
 
 # make list columns into sets for insertion into postgres DB
 recipes = list_to_json_dump(recipes)
 # recipes = fix_list_cols(recipes)
-# recipes.ingredients.values[0]
 
 recipes.to_parquet('data/dish_recipes.parquet')
 recipes.to_csv('data/dish_recipes.csv', index=False)
 
-df = recipes.head(10000)
-df.to_csv('data/dish_recipes2.csv', index=False)
-
-# df
-# df.replace({'"': "'"}, regex=True)
 # Explode out dataset into long format
-
 recipes_exp = recipes[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
 recipes_exp.to_csv('data/dish_recipes_long.csv', index=False)
 
 df_exp = df[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
 df_exp.to_csv('data/dish_recipes_long2.csv', index=False)
+
 # ------------------------------------------
 # Create Table and Insert Data into Postgres
 # ------------------------------------------
@@ -56,11 +46,7 @@ conn = pg.connect(
     password = '1224'
     )
 
-conn = pg.connect("postgres://lhachoxe:0gulr1ciEm1VoUY77wARNm9--O50pR6_@mahmud.db.elephantsql.com/lhachoxe")
-
-# conn = pg.connect(
-#     "postgres://yawswscp:vZLk0MlwMcMjVo178bYyhOjYtOUcwiyL@mahmud.db.elephantsql.com/yawswscp"
-#     )
+# conn = pg.connect(url)
 
 # Create cursor object to interact with the database
 cur = conn.cursor()
@@ -96,12 +82,6 @@ conn = pg.connect(
 
 # Establish DB engine
 # engine = create_engine("postgresql://postgres:1224@localhost:5432/postgres")
-engine = create_engine("postgresql://lhachoxe:0gulr1ciEm1VoUY77wARNm9--O50pR6_@mahmud.db.elephantsql.com/lhachoxe")
-
-df = recipes.head(100000)
-df = df[["dish", "ingredients"]]
-# df.to_csv("data/first_1000.csv")
-
 
 # Write recipes data to DB by appending to already created DB above
 recipes.to_sql(
@@ -130,10 +110,6 @@ df_exp = recipes.explode(['ingredients']).reset_index(drop=True)
 
 # select dish, ingredients, and quantities columns
 df_exp = df_exp[["dish", "ingredients", "quantities"]]
-
-# tmp = df_exp[df_exp["dish"] == "Creamy Corn"]
-# df_exp.columns
-# tmp.ingredients
 
 # Connect to PostgreSQL server
 conn = pg.connect(
