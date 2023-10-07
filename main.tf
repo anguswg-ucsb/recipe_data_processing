@@ -102,7 +102,7 @@ resource "aws_security_group" "aurora_sg" {
 }
 
 resource "aws_security_group" "sg_lambda" {
-  name = "sg-lambda"
+  name = "lambda-sg-proxy"
   vpc_id      = data.aws_vpc.main_vpc.id
 
   egress {
@@ -114,6 +114,7 @@ resource "aws_security_group" "sg_lambda" {
 }
 
 resource "aws_security_group" "sg_rds_proxy" {
+  name = "rds-proxy-sg"
   vpc_id      = data.aws_vpc.main_vpc.id
 
   ingress {
@@ -133,6 +134,7 @@ resource "aws_security_group" "sg_rds_proxy" {
 }
 
 resource "aws_security_group" "sg_rds" {
+  name = "rds-sg"
   vpc_id      = data.aws_vpc.main_vpc.id
 
   ingress {
@@ -151,10 +153,101 @@ resource "aws_security_group" "sg_rds" {
   }
 }
 
-###############################
-# AWS SECRETS MANAGERS CONFIG #
-###############################
+##############################
+# SECRETS MANAGERS RDS PROXY #
+##############################
 
+resource "aws_secretsmanager_secret" "rds_secret" {
+  name_prefix = var.rds_proxy_secret_prefix
+  recovery_window_in_days = 7
+  description = "Secret for RDS Proxy"
+}
+
+# aws_rds_cluster.aurora_dish_recipes_cluster.iam_database_authentication_enabled
+# aws_rds_cluster_instance.aurora_dish_recipes_instance
+resource "aws_secretsmanager_secret_version" "rds_secret_version" {
+  secret_id     = aws_secretsmanager_secret.rds_secret.id
+  secret_string = jsonencode({
+    "username"             = var.db_username
+    "password"             = var.db_password
+    "engine"               = "postgres"
+    "host"                 = aws_rds_cluster.aurora_dish_recipes_cluster.endpoint
+    "port"                 = aws_rds_cluster.aurora_dish_recipes_cluster.port
+    "dbInstanceIdentifier" = aws_rds_cluster.aurora_dish_recipes_cluster.id
+  })
+}
+
+##########################################
+# RDS PROXY SECRETS IAM ROLE/PERMISSIONS #
+##########################################
+
+data "aws_iam_policy_document" "assume_role" {
+
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["rds.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "rds_proxy_policy_document" {
+
+  statement {
+    sid = "AllowProxyToGetDbCredsFromSecretsManager"
+
+    actions = [
+      "secretsmanager:GetSecretValue"
+    ]
+
+    resources = [
+      aws_secretsmanager_secret.rds_secret.arn
+    ]
+  }
+
+  statement {
+    sid = "AllowProxyToDecryptDbCredsFromSecretsManager"
+
+    actions = [
+      "kms:Decrypt"
+    ]
+
+    resources = [
+      "*"
+    ]
+
+    condition {
+      test     = "StringEquals"
+      values   = ["secretsmanager.${var.region}.amazonaws.com"]
+      variable = "kms:ViaService"
+    }
+  }
+}
+
+# Create an IAM policy with the necessary permissions for the RDS Proxy to access Secrets Manager
+resource "aws_iam_policy" "rds_proxy_iam_policy" {
+  name   = "rds-proxy-policy"
+  policy = data.aws_iam_policy_document.rds_proxy_policy_document.json
+}
+
+# Attach above IAM policy to the IAM role for RDS Proxy
+resource "aws_iam_role_policy_attachment" "rds_proxy_iam_attach" {
+  policy_arn = aws_iam_policy.rds_proxy_iam_policy.arn
+  role       = aws_iam_role.rds_proxy_iam_role.name
+}
+
+# Create an IAM role for the RDS Proxy to assume
+resource "aws_iam_role" "rds_proxy_iam_role" {
+  name               = "rds-proxy-role"
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+}
+
+###############################
+# DB SECRETS MANAGERS SECRETS #
+###############################
 
 resource "aws_secretsmanager_secret" "database_credentials" {
   name = var.secrets_manager_credentials_name
@@ -207,6 +300,8 @@ resource "aws_iam_role_policy_attachment" "secrets_manager_role_policy_attachmen
   policy_arn = aws_iam_policy.secrets_manager_policy.arn
 }
 
+
+
 ###############################
 # AWS Aurora cluster #
 ###############################
@@ -231,7 +326,7 @@ resource "aws_rds_cluster" "aurora_dish_recipes_cluster" {
 
   # iam_database_authentication_enabled = true
   # iam_roles = [aws_iam_role.aurora_rds_role.arn]
-  vpc_security_group_ids = [aws_security_group.aurora_sg.id]
+  vpc_security_group_ids = [aws_security_group.aurora_sg.id, aws_security_group.sg_rds.id]
 }
 
 resource "aws_rds_cluster_role_association" "aurora_dish_recipes_role_association" {
@@ -247,6 +342,45 @@ resource "aws_rds_cluster_instance" "aurora_dish_recipes_instance" {
   engine_version     = aws_rds_cluster.aurora_dish_recipes_cluster.engine_version
   apply_immediately  = true
   publicly_accessible     = true
+}
+
+############################
+# Setup RDS Proxy for Aurora
+############################
+# RDS Proxy will go in the same VPC as the Aurora cluster and will proxy connections between 
+# the Lambda function and the Aurora cluster
+
+resource "aws_db_proxy_default_target_group" "rds_proxy_target_group" {
+  db_proxy_name = aws_db_proxy.db_proxy.name
+
+  connection_pool_config {
+    connection_borrow_timeout = 120
+    max_connections_percent = 100
+  }
+}
+
+resource "aws_db_proxy_target" "rds_proxy_target" {
+  db_cluster_identifier  = aws_rds_cluster.aurora_dish_recipes_cluster.id
+  db_proxy_name          = aws_db_proxy.db_proxy.name
+  target_group_name      = aws_db_proxy_default_target_group.rds_proxy_target_group.name
+}
+
+# Aurora POSTGRES RDS Proxy
+resource "aws_db_proxy" "db_proxy" {
+  name                   = "aurora-proxy-dish-recipes"
+  debug_logging          = false
+  engine_family          = "POSTGRESQL"
+  idle_client_timeout    = 1800
+  require_tls            = true
+  role_arn               = aws_iam_role.rds_proxy_iam_role.arn
+  vpc_security_group_ids = [aws_security_group.sg_rds_proxy.id]
+  vpc_subnet_ids         = [data.aws_subnet.default_subnet1.id, data.aws_subnet.default_subnet2.id]
+
+  auth {
+    auth_scheme = "SECRETS"
+    iam_auth    = "REQUIRED"
+    secret_arn  = aws_secretsmanager_secret.rds_secret.arn
+  }
 }
 
 #####################
@@ -384,7 +518,8 @@ resource "aws_iam_policy" "lambda_policy" {
         "ec2:DescribeNetworkInterfaces",
         "ec2:DeleteNetworkInterface",
         "ec2:AssignPrivateIpAddresses",
-        "ec2:UnassignPrivateIpAddresses"
+        "ec2:UnassignPrivateIpAddresses",
+        "rds-db:*"
         ],
       "Resource": "*"
     }
@@ -501,7 +636,7 @@ resource "aws_lambda_function" "s3_to_aurora_lambda" {
   # configure VPC settings so Lambda can connect with Aurora DB in same VPC
   vpc_config {
     subnet_ids         = [data.aws_subnet.default_subnet1.id, data.aws_subnet.default_subnet2.id]
-    security_group_ids = [aws_security_group.lambda_sg.id]
+    security_group_ids = [aws_security_group.lambda_sg.id, aws_security_group.sg_lambda.id]
   }
   
   # timeout in seconds
@@ -632,7 +767,8 @@ resource "aws_lambda_function" "create_user_lambda" {
   # configure VPC settings so Lambda can connect with Aurora DB in same VPC
   vpc_config {
     subnet_ids         = [data.aws_subnet.default_subnet1.id, data.aws_subnet.default_subnet2.id]
-    security_group_ids = [aws_security_group.lambda_sg.id]
+    security_group_ids = [aws_security_group.lambda_sg.id, aws_security_group.sg_lambda.id]
+    # security_group_ids = [aws_security_group.lambda_sg.id]
   }
   
   # timeout in seconds
