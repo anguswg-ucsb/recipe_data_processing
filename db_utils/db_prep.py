@@ -23,8 +23,21 @@ recipes = clean_raw_data(read_recipes)
 recipes = list_to_json_dump(recipes)
 # recipes = fix_list_cols(recipes)
 
-recipes.to_parquet('data/dish_recipes.parquet')
-recipes.to_csv('data/dish_recipes.csv', index=False)
+# # Save cleaned dataframe as parquet and csv files
+# recipes.to_parquet('data/dish_recipes.parquet')
+# recipes.to_csv('data/dish_recipes.csv', index=False)
+
+# Add a unique dish_id to act as the primary key
+recipes["dish_id"] = recipes.index
+
+# Save cleaned dataframe as parquet and csv files
+recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
+recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
+recipes.head(200000)[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes2.csv', index=False)
+
+# Split dataset into two tables, one for dish details and one for dish ingredients, with dish_id as the primary key
+recipes[["dish_id", "uid", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
+recipes[["dish_id", "split_ingredients", "quantities", "directions"]].to_csv('data/details_table.csv', index=False)
 
 # Explode out dataset into long format
 recipes_exp = recipes[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)

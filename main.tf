@@ -159,7 +159,7 @@ resource "aws_security_group" "sg_rds" {
 
 resource "aws_secretsmanager_secret" "rds_secret" {
   name_prefix = var.rds_proxy_secret_prefix
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
   description = "Secret for RDS Proxy"
 }
 
@@ -251,6 +251,7 @@ resource "aws_iam_role" "rds_proxy_iam_role" {
 
 resource "aws_secretsmanager_secret" "database_credentials" {
   name = var.secrets_manager_credentials_name
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_credentials_version" {
@@ -333,6 +334,11 @@ resource "aws_rds_cluster_role_association" "aurora_dish_recipes_role_associatio
   db_cluster_identifier = aws_rds_cluster.aurora_dish_recipes_cluster.id
   feature_name          = "s3Import"
   role_arn              = aws_iam_role.aurora_rds_role.arn  
+
+  timeouts {
+    create = "30m"
+    delete = "30m"
+  }
 }
 
 resource "aws_rds_cluster_instance" "aurora_dish_recipes_instance" {
