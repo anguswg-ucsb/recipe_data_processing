@@ -31,20 +31,31 @@ recipes = list_to_json_dump(recipes)
 recipes["dish_id"] = recipes.index
 
 # Save cleaned dataframe as parquet and csv files
-recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
-recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
-recipes.head(200000)[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes2.csv', index=False)
+recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
+recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
+
+recipes.head(1000)[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes2.csv', index=False)
+
+# recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
+# recipes[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
+
+# recipes.head(200000)[['dish_id', 'uid', 'dish', 'ingredients', 'split_ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes2.csv', index=False)
 
 # Split dataset into two tables, one for dish details and one for dish ingredients, with dish_id as the primary key
-recipes[["dish_id", "uid", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
-recipes[["dish_id", "split_ingredients", "quantities", "directions"]].to_csv('data/details_table.csv', index=False)
+recipes[["dish_id", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
+recipes[["dish_id", "dish", "directions"]].to_csv('data/directions_table.csv', index=False)
+recipes[["dish_id", "dish", "quantities"]].to_csv('data/quantities_table.csv', index=False)
+# recipes[["dish_id", "dish", "quantities", "directions"]].to_csv('data/details_table.csv', index=False)
 
-# Explode out dataset into long format
-recipes_exp = recipes[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
-recipes_exp.to_csv('data/dish_recipes_long.csv', index=False)
+# recipes[["dish_id", "uid", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
+# recipes[["dish_id", "split_ingredients", "quantities", "directions"]].to_csv('data/details_table.csv', index=False)
 
-df_exp = df[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
-df_exp.to_csv('data/dish_recipes_long2.csv', index=False)
+# # Explode out dataset into long format
+# recipes_exp = recipes[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
+# recipes_exp.to_csv('data/dish_recipes_long.csv', index=False)
+
+# df_exp = df[["uid", "dish", "ingredients"]].explode(['ingredients']).reset_index(drop=True)
+# df_exp.to_csv('data/dish_recipes_long2.csv', index=False)
 
 # ------------------------------------------
 # Create Table and Insert Data into Postgres

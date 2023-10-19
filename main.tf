@@ -13,6 +13,18 @@ provider "aws" {
   profile = var.profile
 }
 
+#################
+# Local variables
+#################
+
+locals {
+  csv_file_path = "data/dish_recipes2.csv"
+  process_csv_lambda_path = "lambda/process_csv_lambda.zip"
+  s3_to_db_lambda_path = "lambda/s3_to_db.zip"
+  create_user_lambda_path = "lambda/create_user.zip"
+  psychopg2_zip_path ="lambda/psycopg2-py38.zip"
+}
+
 ####################
 # VPC and Subnet IDs
 ####################
@@ -62,19 +74,17 @@ resource "aws_secretsmanager_secret_version" "ec2_secret_version" {
 resource "aws_instance" "ec2_db_instance" {
   ami           = var.ec2_t2_micro_ami_id
   instance_type = "t2.micro"
+  iam_instance_profile = aws_iam_instance_profile.ec2_instance_profile.name
   key_name      = aws_key_pair.ssh_key.key_name
-
+  
   user_data_base64 =base64encode("${templatefile("${var.path_to_setup_db_script}", {
       DB_USERNAME = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["username"],
       DB_PASSWORD = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["password"],
-      DB_NAME     = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["db_name"]
-      #     DB_USERNAME = var.db_username, 
-      #     DB_PASSWORD = var.db_password, 
-      #     DB_NAME     = var.db_name
+      DB_NAME     = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["db_name"],
+      S3_BUCKET   = var.s3_bucket_name,
+      S3_FILE     = var.s3_csv_file_name,
+      AWS_REGION  = var.region,
   })}")
-
-  # master_username         = jsondecode(aws_secretsmanager_secret_version.database_credentials_version.secret_string)["username"]
-#   master_password         = jsondecode(aws_secretsmanager_secret_version.database_credentials_version.secret_string)["password"]
 
   # user_data     = file("path/to/your/user-data-script.sh")
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
@@ -83,6 +93,8 @@ resource "aws_instance" "ec2_db_instance" {
   associate_public_ip_address = true
 
   depends_on = [
+    aws_s3_bucket.dish_recipes_bucket,
+    aws_s3_object.dish_recipes_bucket_object,
     aws_secretsmanager_secret_version.ec2_secret_version,
     aws_secretsmanager_secret.ec2_db_secret,
     aws_security_group.ec2_sg,
@@ -91,6 +103,40 @@ resource "aws_instance" "ec2_db_instance" {
   tags = {
     Name = "EC2 Database Instance"
   }
+}
+
+##############
+# EC2 IAM ROLE
+##############
+
+resource "aws_iam_role" "ec2_role" {
+  name = "EC2-IAM-ReadOnly"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_role_policy_attachment" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "ec2-instance-profile"
+
+  role = aws_iam_role.ec2_role.id
 }
 # # ##############
 # # EC2 Key Pair #
@@ -128,13 +174,13 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["${var.env_ip}/32"]
   }
 
-  # Rule to allow traffic from the Lambda security group
-  ingress {
-    from_port         = 0
-    to_port           = 0
-    protocol          = -1
-    security_groups   = [aws_security_group.lambda_sg.id]
-  }
+  # # Rule to allow traffic from the Lambda security group
+  # ingress {
+  #   from_port         = 0
+  #   to_port           = 0
+  #   protocol          = -1
+  #   security_groups   = [aws_security_group.lambda_sg.id]
+  # }
   
   egress {
     from_port   = 0
@@ -148,24 +194,25 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-# Security group for the Lambda function
-resource "aws_security_group" "lambda_sg" {
-  name        = "lambda_sg"
-  description = "Security group for the Lambda function"
-  vpc_id      = data.aws_vpc.main_vpc.id
+# # Security group for the Lambda function
+# resource "aws_security_group" "lambda_sg" {
+#   name        = "lambda_sg"
+#   description = "Security group for the Lambda function"
+#   vpc_id      = data.aws_vpc.main_vpc.id
 
-  # lambda function egress
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
+#   # lambda function egress
+#   egress {
+#     from_port        = 0
+#     to_port          = 0
+#     protocol         = "-1"
+#     cidr_blocks      = ["0.0.0.0/0"]
+#   }
 
-  tags = {
-    Name = "lambda_sg"
-  }
-}
+#   tags = {
+#     Name = "lambda_sg"
+#   }
+# }
+
 # resource "aws_security_group" "lambda_sg" {
 #     name = "lambda-sg"
 #     vpc_id      = data.aws_vpc.main_vpc.id
@@ -341,212 +388,41 @@ resource "aws_security_group" "lambda_sg" {
 # AWS Lambda #
 ###############################
 
-# s3 bucket for lambda code
-resource "aws_s3_bucket" "s3_to_db_lambda_bucket" {
-  bucket = "s3-to-aurora-lambda-bucket" 
-}
-
-# s3 object for lambda code
-resource "aws_s3_object" "s3_to_db_lambda_code" {
-  bucket = aws_s3_bucket.s3_to_db_lambda_bucket.bucket
-  key    = "lambda_function.zip"
-  source = local.s3_to_db_lambda_path
-}
-
-# lambda role to assume
-data "aws_iam_policy_document" "lambda_assume_role" {
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-# Create an IAM role for the lambda to assume role
-resource "aws_iam_role" "lambda_role" {
-  name               = "lambda_role"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
-}
-
-# Create an IAM policy for the lambda to access S3 and DynamoDB
-resource "aws_iam_policy" "lambda_policy" {
-  name = "lambda_policy"
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "dynamodb:PutItem",
-      "Resource": "arn:aws:dynamodb:*:*:table/dish_recipes_db"
-    },
-    {
-      "Effect": "Allow",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::dish-recipes-bucket/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "ec2:CreateNetworkInterface",
-        "ec2:DescribeNetworkInterfaces",
-        "ec2:DeleteNetworkInterface",
-        "ec2:AssignPrivateIpAddresses",
-        "ec2:UnassignPrivateIpAddresses",
-        "rds-db:*"
-        ],
-      "Resource": "*"
-    }
-  ]
-}
-EOF
-}
-
-# Attach necessary policies to the IAM role
-resource "aws_iam_role_policy_attachment" "lambda_role_attachment" {
-  role      = aws_iam_role.lambda_role.name
-  # policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-  policy_arn = aws_iam_policy.lambda_policy.arn
-  # policy_arn = "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
-}
-# arn:aws:iam::aws:policy/AWSLambda_FullAccess
-# arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-
-# lambda log group
-resource "aws_cloudwatch_log_group" "s3_to_aurora_log_group" {
-  name              = "/aws/lambda/${var.s3_to_db_lambda_function_name}"
-  # name              = "/aws/lambda/${aws_lambda_function.process_csv_lambda.function_name}"
-  # name              = "/aws/lambda/process_csv_lambda"
-  retention_in_days = 14
-}
-
-resource "aws_iam_policy" "s3_to_aurora_logging_policy" {
-  name   = "s3-to-aurora-logging-policy"
-  policy = jsonencode({
-    "Version" : "2012-10-17",
-    "Statement" : [
-      {
-        Action : [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Effect : "Allow",
-        Resource : "arn:aws:logs:*:*:*"
-      }
-    ]
-  })
-}
-
-# Attach the lambda logging IAM policy to the lambda role
-resource "aws_iam_role_policy_attachment" "s3_to_db_lambda_logs" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.s3_to_aurora_logging_policy.arn
-}
-
-####################
-# AWS Pyscopg Lambda layer 
-####################
-
-# Create an S3 bucket
-resource "aws_s3_bucket" "lambda_layer_bucket" {
-  bucket = var.input_s3_bucket_name
-}
-
-# Upload the zip file to the S3 bucket
-resource "aws_s3_object" "lambda_layer_zip" {
-  bucket = aws_s3_bucket.lambda_layer_bucket.bucket
-  key    = var.input_s3_obj_key 
-  source = local.psychopg2_zip_path
-}
-
-resource "aws_lambda_layer_version" "psychopg2_layer" {
-  layer_name          = var.input_layer_name
-  description         = var.input_desc
-  s3_bucket           = var.input_s3_bucket_name
-  s3_key              = var.input_s3_obj_key
-  compatible_runtimes = var.input_runtime
-}
-
-
-################################
-# S3 to Aurora Lambda Function #
-################################
-
-# lambda function to process csv file
-resource "aws_lambda_function" "s3_to_db_lambda" {
-  s3_bucket        = aws_s3_bucket.s3_to_db_lambda_bucket.bucket
-  s3_key           = "lambda_function.zip"
-  function_name    = "s3_to_aurora"
-  handler          = "s3_to_aurora.s3_to_aurora"
-  # handler          = "function.name/handler.process_csv_lambda"
-  role             = aws_iam_role.lambda_role.arn
-  runtime          = "python3.8"
-
-  layers = [aws_lambda_layer_version.psychopg2_layer.arn]
-
-  # Attach the Lambda function to the CloudWatch Logs group
-  environment {
-    variables = {
-      CW_LOG_GROUP = aws_cloudwatch_log_group.s3_to_aurora_log_group.name,
-      DB_NAME = aws_rds_cluster.aurora_dish_recipes_cluster.database_name,
-      ENDPOINT = aws_rds_cluster.aurora_dish_recipes_cluster.endpoint,
-      DB_USER = aws_rds_cluster.aurora_dish_recipes_cluster.master_username,
-      DB_PW = aws_rds_cluster.aurora_dish_recipes_cluster.master_password,
-    }
-  }
-
-  # configure VPC settings so Lambda can connect with Aurora DB in same VPC
-  vpc_config {
-    subnet_ids         = [data.aws_subnet.default_subnet1.id, data.aws_subnet.default_subnet2.id]
-    security_group_ids = [aws_security_group.lambda_sg.id, aws_security_group.sg_lambda.id]
-  }
-  
-  # timeout in seconds
-  timeout         = 900
-  
-  depends_on = [
-    aws_s3_object.lambda_layer_zip,
-    aws_iam_role_policy_attachment.s3_to_db_lambda_logs,
-    aws_cloudwatch_log_group.s3_to_aurora_log_group,
-  ]
-
-}
-
-# ##################################
-# # AWS create user Lambda Resources
-# ##################################
-
-# # S3 bucket for Lambda code
-# resource "aws_s3_bucket" "create_user_lambda_bucket" {
-#   bucket = "create-user-lambda-bucket"
+# # s3 bucket for lambda code
+# resource "aws_s3_bucket" "s3_to_db_lambda_bucket" {
+#   bucket = "s3-to-db-lambda-bucket" 
 # }
 
-# # S3 object for Lambda code
-# resource "aws_s3_object" "create_user_lambda_code" {
-#   bucket = aws_s3_bucket.create_user_lambda_bucket.bucket
+# # s3 object for lambda code
+# resource "aws_s3_object" "s3_to_db_lambda_code" {
+#   bucket = aws_s3_bucket.s3_to_db_lambda_bucket.bucket
 #   key    = "lambda_function.zip"
-#   source = local.create_user_lambda_path
+#   source = local.s3_to_db_lambda_path
 # }
 
-# # Create an IAM role for the Lambda to assume role
-# resource "aws_iam_role" "create_user_lambda_role" {
-#   name               = "create_user_lambda_role"
+# # lambda role to assume
+# data "aws_iam_policy_document" "lambda_assume_role" {
+#   statement {
+#     effect = "Allow"
+
+#     principals {
+#       type        = "Service"
+#       identifiers = ["lambda.amazonaws.com"]
+#     }
+
+#     actions = ["sts:AssumeRole"]
+#   }
+# }
+
+# # Create an IAM role for the lambda to assume role
+# resource "aws_iam_role" "lambda_role" {
+#   name               = "lambda_role"
 #   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 # }
 
-# # Create an IAM policy for the Lambda to access Aurora PostgreSQL
-# resource "aws_iam_policy" "create_user_lambda_policy" {
-#   name = "create_user_lambda_policy"
+# # Create an IAM policy for the lambda to access S3 and DynamoDB
+# resource "aws_iam_policy" "lambda_policy" {
+#   name = "lambda_policy"
 
 #   policy = <<EOF
 # {
@@ -554,8 +430,12 @@ resource "aws_lambda_function" "s3_to_db_lambda" {
 #   "Statement": [
 #     {
 #       "Effect": "Allow",
+#       "Action": "s3:GetObject",
+#       "Resource": "arn:aws:s3:::dish-recipes-bucket/*"
+#     },
+#     {
+#       "Effect": "Allow",
 #       "Action": [
-#         "rds-db:connect",
 #         "logs:CreateLogGroup",
 #         "logs:CreateLogStream",
 #         "logs:PutLogEvents",
@@ -563,7 +443,8 @@ resource "aws_lambda_function" "s3_to_db_lambda" {
 #         "ec2:DescribeNetworkInterfaces",
 #         "ec2:DeleteNetworkInterface",
 #         "ec2:AssignPrivateIpAddresses",
-#         "ec2:UnassignPrivateIpAddresses"
+#         "ec2:UnassignPrivateIpAddresses",
+#         "rds-db:*"
 #         ],
 #       "Resource": "*"
 #     }
@@ -573,98 +454,135 @@ resource "aws_lambda_function" "s3_to_db_lambda" {
 # }
 
 # # Attach necessary policies to the IAM role
-# resource "aws_iam_role_policy_attachment" "create_user_lambda_role_attachment" {
-#   role       = aws_iam_role.create_user_lambda_role.name
-#   policy_arn = aws_iam_policy.create_user_lambda_policy.arn
+# resource "aws_iam_role_policy_attachment" "lambda_role_attachment" {
+#   role      = aws_iam_role.lambda_role.name
+#   # policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+#   policy_arn = aws_iam_policy.lambda_policy.arn
+#   # policy_arn = "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
 # }
+# # arn:aws:iam::aws:policy/AWSLambda_FullAccess
+# # arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
-# # Lambda log group
-# resource "aws_cloudwatch_log_group" "create_user_lambda_log_group" {
-#   name              = "/aws/lambda/create_user_lambda"
+# # lambda log group
+# resource "aws_cloudwatch_log_group" "s3_to_db_log_group" {
+#   name              = "/aws/lambda/${var.s3_to_db_lambda_function_name}"
+#   # name              = "/aws/lambda/${aws_lambda_function.process_csv_lambda.function_name}"
+#   # name              = "/aws/lambda/process_csv_lambda"
 #   retention_in_days = 14
 # }
 
-# # IAM policy for Lambda logging
-# resource "aws_iam_policy" "create_user_lambda_logging_policy" {
-#   name   = "create_user_lambda_logging_policy"
+# resource "aws_iam_policy" "s3_to_db_logging_policy" {
+#   name   = "s3-to-db-logging-policy"
 #   policy = jsonencode({
 #     "Version" : "2012-10-17",
 #     "Statement" : [
 #       {
-#         "Action": [
+#         Action : [
 #           "logs:CreateLogGroup",
 #           "logs:CreateLogStream",
 #           "logs:PutLogEvents"
 #         ],
-#         "Effect": "Allow",
-#         "Resource": "arn:aws:logs:*:*:*"
+#         Effect : "Allow",
+#         Resource : "arn:aws:logs:*:*:*"
 #       }
 #     ]
 #   })
 # }
 
-# # Attach the Lambda logging IAM policy to the Lambda role
-# resource "aws_iam_role_policy_attachment" "create_user_lambda_logs" {
-#   role       = aws_iam_role.create_user_lambda_role.name
-#   policy_arn = aws_iam_policy.create_user_lambda_logging_policy.arn
+# # Attach the lambda logging IAM policy to the lambda role
+# resource "aws_iam_role_policy_attachment" "s3_to_db_lambda_logs" {
+#   role       = aws_iam_role.lambda_role.name
+#   policy_arn = aws_iam_policy.s3_to_db_logging_policy.arn
 # }
 
-# ############################################
-# # AWS Create Postgres user Lambda Function #
-# ############################################
+# ##############################
+# # AWS S3 pyscopg2 Lambda layer 
+# ##############################
 
-# resource "aws_lambda_function" "create_user_lambda" {
-#   s3_bucket        = aws_s3_bucket.create_user_lambda_bucket.bucket
+# # Create an S3 bucket
+# resource "aws_s3_bucket" "lambda_layer_bucket" {
+#   bucket = var.input_s3_bucket_name
+# }
+
+# # Upload the zip file to the S3 bucket
+# resource "aws_s3_object" "lambda_layer_zip" {
+#   bucket = aws_s3_bucket.lambda_layer_bucket.bucket
+#   key    = var.input_s3_obj_key 
+#   source = local.psychopg2_zip_path
+# }
+
+# resource "aws_lambda_layer_version" "psychopg2_layer" {
+#   layer_name          = var.input_layer_name
+#   description         = var.input_desc
+#   s3_bucket           = var.input_s3_bucket_name
+#   s3_key              = var.input_s3_obj_key
+#   compatible_runtimes = var.input_runtime
+#   depends_on = [
+#     aws_s3_bucket.lambda_layer_bucket,
+#     aws_s3_object.lambda_layer_zip,
+#   ] 
+# }
+
+
+# ######################################
+# # S3 to EC2 Database Lambda Function #
+# ######################################
+
+# # lambda function to process csv file
+# resource "aws_lambda_function" "s3_to_db_lambda" {
+#   s3_bucket        = aws_s3_bucket.s3_to_db_lambda_bucket.bucket
 #   s3_key           = "lambda_function.zip"
-#   function_name    = "create_user"
-#   handler          = "create_user.create_user"
-#   role             = aws_iam_role.create_user_lambda_role.arn
+#   function_name    = "s3_to_db"
+#   handler          = "s3_to_db.s3_to_db"
+#   # handler          = "function.name/handler.process_csv_lambda"
+#   role             = aws_iam_role.lambda_role.arn
 #   runtime          = "python3.8"
-  
+
 #   layers = [aws_lambda_layer_version.psychopg2_layer.arn]
 
 #   # Attach the Lambda function to the CloudWatch Logs group
 #   environment {
 #     variables = {
-#       CW_LOG_GROUP = aws_cloudwatch_log_group.create_user_lambda_log_group.name,
-#       DB_NAME = aws_rds_cluster.aurora_dish_recipes_cluster.database_name,
-#       ENDPOINT = aws_rds_cluster.aurora_dish_recipes_cluster.endpoint,
-#       DB_USER = aws_rds_cluster.aurora_dish_recipes_cluster.master_username,
-#       DB_PW = aws_rds_cluster.aurora_dish_recipes_cluster.master_password,
-#       NEW_USER = var.new_username,
-#       NEW_PW = var.new_password,
+#       CW_LOG_GROUP = aws_cloudwatch_log_group.s3_to_db_log_group.name,
+#       S3_FILE_NAME = var.s3_csv_file_name,
+#       DB_NAME = var.db_name,
+#       # ENDPOINT = aws_rds_cluster.aurora_dish_recipes_cluster.endpoint,
+#       ENDPOINT = aws_instance.ec2_db_instance.public_dns,
+#       DB_USER = var.db_username,
+#       DB_PW = var.db_password,
 #     }
 #   }
-  
-#   # configure VPC settings so Lambda can connect with Aurora DB in same VPC
+
+#   # configure VPC settings so Lambda can connect with EC2 postgres DB in same VPC
 #   vpc_config {
 #     subnet_ids         = [data.aws_subnet.default_subnet1.id, data.aws_subnet.default_subnet2.id]
-#     security_group_ids = [aws_security_group.lambda_sg.id, aws_security_group.sg_lambda.id]
-#     # security_group_ids = [aws_security_group.lambda_sg.id]
+#     security_group_ids = [aws_security_group.lambda_sg.id]
 #   }
   
 #   # timeout in seconds
 #   timeout         = 900
-
+  
 #   depends_on = [
+#     aws_instance.ec2_db_instance,
+#     aws_security_group.ec2_sg,
 #     aws_s3_object.lambda_layer_zip,
-#     aws_s3_object.create_user_lambda_code,
-#     aws_iam_role_policy_attachment.create_user_lambda_logs,
-#     aws_cloudwatch_log_group.create_user_lambda_log_group,
+#     aws_iam_role_policy_attachment.s3_to_db_lambda_logs,
+#     aws_cloudwatch_log_group.s3_to_db_log_group,
 #   ]
+
 # }
 
-# ###############################
-# # AWS S3 bucket #
-# ###############################
+# #######################################
+# # AWS S3 bucket (dish-recipes-bucket) #
+# #######################################
 
 # s3 bucket to store csv file
 resource "aws_s3_bucket" "dish_recipes_bucket" {
   bucket = "dish-recipes-bucket"
-    depends_on = [
-    aws_lambda_function.s3_to_db_lambda,
-    aws_rds_cluster.aurora_dish_recipes_cluster,
-  ]
+  #   depends_on = [
+  #   aws_lambda_function.s3_to_db_lambda,
+  #   aws_instance.ec2_db_instance,
+  # ]
 }
 
 # s3 bucket ownership controls
@@ -734,57 +652,64 @@ resource "aws_s3_bucket_policy" "dish_recipes_bucket_policy" {
     aws_s3_bucket_public_access_block.dish_s3_public_access_block,
   ]
 }
+# ###############################
+# # AWS S3 Object (CSV file) #
+# ###############################
 
 # s3 object to store csv file
 resource "aws_s3_object" "dish_recipes_bucket_object" {
   bucket = aws_s3_bucket.dish_recipes_bucket.bucket
-  key    = "dish_recipes.csv"
+  key    = var.s3_csv_file_name
   source = local.csv_file_path
-  depends_on = [
-    aws_s3_bucket_notification.s3_bucket_notification,
-    aws_lambda_function.s3_to_db_lambda,
-    aws_rds_cluster.aurora_dish_recipes_cluster,
-  ]
+  # depends_on = [
+  #   aws_s3_bucket_notification.s3_bucket_notification,
+  #   aws_lambda_function.s3_to_db_lambda,
+  #   aws_instance.ec2_db_instance,
+  # ]
 }
 
-# S3 bucket notification to invoke lambda when csv file is uploaded
-resource "aws_s3_bucket_notification" "s3_bucket_notification" {
-    bucket = aws_s3_bucket.dish_recipes_bucket.id
+# # S3 bucket notification to invoke lambda when csv file is uploaded
+# resource "aws_s3_bucket_notification" "s3_bucket_notification" {
+#     bucket = aws_s3_bucket.dish_recipes_bucket.id
 
 
-    lambda_function {
-        lambda_function_arn = aws_lambda_function.s3_to_db_lambda.arn
-        events              = ["s3:ObjectCreated:*"]
-        # filter_prefix       = "AWSLogs/"
-        filter_suffix       = ".csv"
-    }
+#     lambda_function {
+#         lambda_function_arn = aws_lambda_function.s3_to_db_lambda.arn
+#         events              = ["s3:ObjectCreated:*"]
+#         # filter_prefix       = "AWSLogs/"
+#         filter_suffix       = ".csv"
+#     }
 
-    depends_on = [
-      aws_lambda_permission.lambda_s3_permission,
-      aws_lambda_function.s3_to_db_lambda,
-      aws_rds_cluster.aurora_dish_recipes_cluster,
-      ]
-}
+#     depends_on = [
+#       aws_lambda_permission.lambda_s3_permission,
+#       aws_lambda_function.s3_to_db_lambda,
+#       aws_instance.ec2_db_instance,
+#       ]
+# }
 
-# # lambda permissions to allow s3 to invoke lambda
-resource "aws_lambda_permission" "lambda_s3_permission" {
-  statement_id  = "AllowExecutionFromS3Bucket"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.s3_to_db_lambda.arn
-  principal = "s3.amazonaws.com"
-  # source_arn = "arn:aws:s3:::dish_recipes_bucket"
-  source_arn = aws_s3_bucket.dish_recipes_bucket.arn
-}
+# # # lambda permissions to allow s3 to invoke lambda
+# resource "aws_lambda_permission" "lambda_s3_permission" {
+#   statement_id  = "AllowExecutionFromS3Bucket"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.s3_to_db_lambda.arn
+#   principal = "s3.amazonaws.com"
+#   # source_arn = "arn:aws:s3:::dish_recipes_bucket"
+#   source_arn = aws_s3_bucket.dish_recipes_bucket.arn
+# }
 
-# # lambda permissions to allow RDS to invoke lambda
-resource "aws_lambda_permission" "lambda_rds_permission" {
-  statement_id  = "AllowExecutionFromAuroraRDSCluster"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.s3_to_db_lambda.arn
-  principal =  "rds.amazonaws.com"
-  # source_arn = "arn:aws:s3:::dish_recipes_bucket"
-  source_arn = aws_rds_cluster.aurora_dish_recipes_cluster.arn
-}
+# # # lambda permissions to allow RDS to invoke lambda
+# resource "aws_lambda_permission" "lambda_rds_permission" {
+#   statement_id  = "AllowExecutionFromAuroraRDSCluster"
+#   action        = "lambda:InvokeFunction"
+#   function_name = aws_lambda_function.s3_to_db_lambda.arn
+#   principal =  "rds.amazonaws.com"
+#   # source_arn = "arn:aws:s3:::dish_recipes_bucket"
+#   source_arn = aws_rds_cluster.aurora_dish_recipes_cluster.arn
+# }
+
+# ####################################################
+# # AWS S3 logging bucket (dish-recipes-bucket logs) #
+# ####################################################
 
 # create s3 bucket for storing logs for dish recipes bucket
 resource "aws_s3_bucket" "dish_recipes_log_bucket" {
