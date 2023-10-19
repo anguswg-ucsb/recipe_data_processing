@@ -22,7 +22,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 try:
-    conn_string = "host=%s user=%s password=%s dbname=%s" % \
+    conn_string = "host=%s user=%s  password=%s dbname=%s" % \
                     (endpoint, db_user, db_pw, db_name)
     conn = psycopg2.connect(conn_string)
     cur = conn.cursor()
