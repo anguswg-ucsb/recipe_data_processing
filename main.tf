@@ -175,12 +175,12 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   # # Rule to allow traffic from the Lambda security group
-  # ingress {
-  #   from_port         = 0
-  #   to_port           = 0
-  #   protocol          = -1
-  #   security_groups   = [aws_security_group.lambda_sg.id]
-  # }
+  ingress {
+    from_port         = 5432
+    to_port           = 5432
+    protocol          = "tcp"
+    security_groups   = [data.aws_security_group.lambda_sg.id]
+  }
   
   egress {
     from_port   = 0
@@ -193,6 +193,11 @@ resource "aws_security_group" "ec2_sg" {
     Name = "ec2_sg"
   }
 }
+
+data "aws_security_group" "lambda_sg" {
+  id = var.lambda_sg_id
+}
+
 
 # # Security group for the Lambda function
 # resource "aws_security_group" "lambda_sg" {

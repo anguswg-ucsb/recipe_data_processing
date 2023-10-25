@@ -188,3 +188,6 @@ tfplan
 variables.tf
 
 config.py
+
+.DS_Store
+**/.DS_Store

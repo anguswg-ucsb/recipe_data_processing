@@ -46,6 +46,7 @@ recipes[["dish_id", "dish", "quantities"]].to_csv('data/quantities_table.csv', i
 # -----------------------------------------
 # Explode ingredients list into long format
 # -----------------------------------------
+
 # explode "ingredients" list column to make an individual row for each ingredients in each dish
 df_exp = recipes.explode(['ingredients']).reset_index(drop=True)
 
