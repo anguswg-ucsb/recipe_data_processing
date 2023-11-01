@@ -8,6 +8,7 @@ from psycopg2 import sql
 
 # DB environemnt variables
 s3_file_name = os.environ.get('S3_FILE_NAME')
+s3_uingreds_file = os.environ.get('S3_UNIQUE_INGREDS_FILE')
 endpoint = os.environ.get('ENDPOINT')
 db_name = os.environ.get('DB_NAME')
 db_user = os.environ.get('DB_USER')
@@ -15,6 +16,7 @@ db_pw = os.environ.get('DB_PW')
 
 # Use the environment variables
 print(f'Value of s3_file_name: {s3_file_name}')
+print(f'Value of s3_uingreds_file: {s3_uingreds_file}')
 print(f'Value of endpoint: {endpoint}')
 print(f'Value of db_name: {db_name}')
 print(f'Value of db_user: {db_user}')
@@ -138,7 +140,20 @@ def s3_to_db(event, context):
     #     'dish_recipes.csv', 
     #     'us-west-1'
     #     )""").format(sql.Identifier(table_name))    
-    
+    import_uingreds_query = sql.SQL("""
+        SELECT aws_s3.table_import_from_s3(
+        'unique_ingredients_table', 
+        'ingredients', 
+        '(FORMAT CSV, DELIMITER '','', HEADER true)', 
+        'dish-recipes-bucket', 
+        '{}', 
+        'us-west-1'
+        )""").format(sql.Identifier(s3_uingreds_file)) 
+
+    print(f"Executing S3 CSV copy command on ", s3_uingreds_file)
+    cur.execute(import_uingreds_query)
+    conn.commit()
+
     import_data_query = sql.SQL("""
         SELECT aws_s3.table_import_from_s3(
         'dish_table', 
@@ -149,7 +164,7 @@ def s3_to_db(event, context):
         'us-west-1'
         )""").format(sql.Identifier(s3_file_name)) 
 
-    print(f"Executing S3 CSV copy command")
+    print(f"Executing S3 CSV copy command on ", s3_file_name)
     cur.execute(import_data_query)
     conn.commit()
 

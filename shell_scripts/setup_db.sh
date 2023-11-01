@@ -2,6 +2,7 @@
 
 echo "The value of S3_BUCKET is: ${S3_BUCKET}"
 echo "The value of S3_FILE is: ${S3_FILE}"
+echo "The value of S3_UNIQUE_INGREDS_FILE is: ${S3_UNIQUE_INGREDS_FILE}"
 echo "The value of DB_NAME is: ${DB_NAME}"
 
 # update 
@@ -34,6 +35,7 @@ sudo mkdir /usr/local/s3_downloads
 
 # copy file from S3 bucket
 sudo aws s3 cp s3://${S3_BUCKET}/${S3_FILE} /usr/local/s3_downloads/${S3_FILE}
+sudo aws s3 cp s3://${S3_BUCKET}/${S3_UNIQUE_INGREDS_FILE} /usr/local/s3_downloads/${S3_UNIQUE_INGREDS_FILE}
 # sudo aws s3 cp s3://dish-recipes-bucket/dish_recipes2.csv /usr/local/s3_downloads/dish_recipes2.csv
 
 # CREATE DATABASE
@@ -53,6 +55,14 @@ sudo -u postgres psql ${DB_NAME} -c "
         directions JSONB
     );"
 
+# CREATE TABLE IN DATABASE
+sudo -u postgres psql ${DB_NAME} -c "
+    CREATE TABLE unique_ingredients_table (
+        ingredients_id SERIAL PRIMARY KEY,
+
+        ingredients TEXT
+    );"
+
 # # CREATE TABLE IN DATABASE (OLD VERSION)
 # sudo -u postgres psql ${DB_NAME} -c "
 #     CREATE TABLE dish_table (
@@ -65,8 +75,12 @@ sudo -u postgres psql ${DB_NAME} -c "
 #         directions JSONB
 #     );"
 
+# copy dish recipes CSV into dish_table
 sudo -u postgres psql -d ${DB_NAME} -c "\copy dish_table FROM 'usr/local/s3_downloads/${S3_FILE}' DELIMITER ',' CSV HEADER;"
 # sudo -u postgres psql -d dish_db -c "\copy dish_table FROM '/usr/local/s3_downloads/dish_recipes2.csv' DELIMITER ',' CSV HEADER;"
+
+# copy unique ingredients CSV into unique_ingredients_table
+sudo -u postgres psql -d ${DB_NAME} -c "\copy unique_ingredients_table FROM 'usr/local/s3_downloads/${S3_UNIQUE_INGREDS_FILE}' DELIMITER ',' CSV HEADER;"
 
 # create directions table (directions_table)
 sudo -u postgres psql ${DB_NAME} -c "
@@ -118,6 +132,9 @@ sudo -u postgres psql ${DB_NAME} -c "ALTER TABLE dish_table
 
 # remove CSV file downloaded from S3
 sudo rm /usr/local/s3_downloads/${S3_FILE}
+
+# remove unique ingredients CSV file downloaded from S3
+sudo rm /usr/local/s3_downloads/${S3_UNIQUE_INGREDS_FILE}
 
 # sudo service postgresql restart
 sudo systemctl restart postgresql

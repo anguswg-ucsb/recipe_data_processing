@@ -19,6 +19,7 @@ provider "aws" {
 
 locals {
   csv_file_path = "data/dish_recipes2.csv"
+  unique_ingred_file_path = "data/unique_ingredients.csv"
   process_csv_lambda_path = "lambda/process_csv_lambda.zip"
   s3_to_db_lambda_path = "lambda/s3_to_db.zip"
   create_user_lambda_path = "lambda/create_user.zip"
@@ -77,13 +78,14 @@ resource "aws_instance" "ec2_db_instance" {
   iam_instance_profile = aws_iam_instance_profile.ec2_instance_profile.name
   key_name      = aws_key_pair.ssh_key.key_name
   
-  user_data_base64 =base64encode("${templatefile("${var.path_to_setup_db_script}", {
-      DB_USERNAME = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["username"],
-      DB_PASSWORD = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["password"],
-      DB_NAME     = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["db_name"],
-      S3_BUCKET   = var.s3_bucket_name,
-      S3_FILE     = var.s3_csv_file_name,
-      AWS_REGION  = var.region,
+  user_data_base64  = base64encode("${templatefile("${var.path_to_setup_db_script}", {
+      DB_USERNAME   = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["username"],
+      DB_PASSWORD   = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["password"],
+      DB_NAME       = jsondecode(aws_secretsmanager_secret_version.ec2_secret_version.secret_string)["db_name"],
+      S3_BUCKET     = var.s3_bucket_name,
+      S3_FILE       = var.s3_csv_file_name,
+      S3_UNIQUE_INGREDS_FILE = var.s3_unique_ingred_file_name,
+      AWS_REGION    = var.region,
   })}")
 
   # user_data     = file("path/to/your/user-data-script.sh")
@@ -95,6 +97,7 @@ resource "aws_instance" "ec2_db_instance" {
   depends_on = [
     aws_s3_bucket.dish_recipes_bucket,
     aws_s3_object.dish_recipes_bucket_object,
+    aws_s3_object.uingredients_bucket_object,
     aws_secretsmanager_secret_version.ec2_secret_version,
     aws_secretsmanager_secret.ec2_db_secret,
     aws_security_group.ec2_sg,
@@ -422,6 +425,18 @@ resource "aws_s3_object" "dish_recipes_bucket_object" {
   bucket = aws_s3_bucket.dish_recipes_bucket.bucket
   key    = var.s3_csv_file_name
   source = local.csv_file_path
+  # depends_on = [
+  #   aws_s3_bucket_notification.s3_bucket_notification,
+  #   aws_lambda_function.s3_to_db_lambda,
+  #   aws_instance.ec2_db_instance,
+  # ]
+}
+
+# s3 object to store csv file
+resource "aws_s3_object" "uingredients_bucket_object" {
+  bucket = aws_s3_bucket.dish_recipes_bucket.bucket
+  key    = var.s3_unique_ingred_file_name
+  source = local.unique_ingred_file_path
   # depends_on = [
   #   aws_s3_bucket_notification.s3_bucket_notification,
   #   aws_lambda_function.s3_to_db_lambda,

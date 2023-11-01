@@ -47,11 +47,33 @@ recipes[["dish_id", "dish", "quantities"]].to_csv('data/quantities_table.csv', i
 # Explode ingredients list into long format
 # -----------------------------------------
 
+recipes_dedup = recipes.drop_duplicates(subset=['dish'], keep='first')
+# duplicate = recipes[recipes.duplicated("dish")]
+
+# Create variable for csv file path to recipe dataset
+file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
+
+# Read CSV file containing data into pandas dataframe
+read_recipes = pd.read_csv(file_path)
+
+# Clean pandas dataframe and save to parquet
+recipes = clean_raw_data(read_recipes)
+
 # explode "ingredients" list column to make an individual row for each ingredients in each dish
 df_exp = recipes.explode(['ingredients']).reset_index(drop=True)
 
-# select dish, ingredients, and quantities columns
-df_exp = df_exp[["dish", "ingredients", "quantities"]]
+# # select dish, ingredients, and quantities columns
+# ingreds_df = df_exp[["ingredients"]]
+
+unique_ingreds = df_exp[["ingredients"]].drop_duplicates(subset=['ingredients'], keep='first')
+unique_ingreds.ingredients = unique_ingreds.ingredients.replace(r'\s+', ' ', regex=True)
+
+unique_ingreds["ingredients_id"] = unique_ingreds.index
+
+unique_ingreds[["ingredients_id", "ingredients"]].to_csv('data/unique_ingredients.csv', index=False)
+
+# -----------------------------------------
+# -----------------------------------------
 
 # Connect to PostgreSQL server
 conn = psycopg2.connect(
