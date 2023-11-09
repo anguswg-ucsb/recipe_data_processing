@@ -59,8 +59,8 @@ sudo -u postgres psql ${DB_NAME} -c "
 sudo -u postgres psql ${DB_NAME} -c "
     CREATE TABLE unique_ingredients_table (
         ingredients_id SERIAL PRIMARY KEY,
-
-        ingredients TEXT
+        ingredients TEXT,
+        count INTEGER
     );"
 
 # # CREATE TABLE IN DATABASE (OLD VERSION)

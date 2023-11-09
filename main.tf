@@ -108,6 +108,25 @@ resource "aws_instance" "ec2_db_instance" {
   }
 }
 
+################
+# EC2 Elastic IP
+################
+
+# Create an Elastic IP
+resource "aws_eip" "ec2_db_eip" {
+  instance = aws_instance.ec2_db_instance.id
+  vpc      = true
+  tags = {
+    name = "Elastic IP for EC2 running postgresql for dishes project"
+  }
+}
+
+# Associate the Elastic IP to the instance
+resource "aws_eip_association" "VPC_A_EIP-Association" {
+  instance_id   = aws_instance.ec2_db_instance.id
+  allocation_id = aws_eip.ec2_db_eip.id
+}
+
 ##############
 # EC2 IAM ROLE
 ##############
@@ -182,7 +201,8 @@ resource "aws_security_group" "ec2_sg" {
     from_port         = 5432
     to_port           = 5432
     protocol          = "tcp"
-    security_groups   = [data.aws_security_group.lambda_sg.id]
+    # security_groups   = [data.aws_security_group.lambda_sg.id]
+    security_groups   = [aws_security_group.lambda_sg.id]
   }
   
   egress {
@@ -197,11 +217,30 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-data "aws_security_group" "lambda_sg" {
-  id = var.lambda_sg_id
+# data "aws_security_group" "lambda_sg" {
+#   id = var.lambda_sg_id
+# }
+
+resource "aws_security_group" "lambda_sg" {
+    name = var.lambda_sg_name
+    vpc_id      = data.aws_vpc.main_vpc.id
+
+    # ingress {
+    #     from_port = 80
+    #     to_port = 80
+    #     protocol = "tcp"
+    #     cidr_blocks = ["0.0.0.0/0"]
+    # }
+
+    egress {
+        from_port = 0
+        to_port = 0
+        protocol = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+
 }
-
-
 # # Security group for the Lambda function
 # resource "aws_security_group" "lambda_sg" {
 #   name        = "lambda_sg"

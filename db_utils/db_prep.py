@@ -64,13 +64,40 @@ df_exp = recipes.explode(['ingredients']).reset_index(drop=True)
 
 # # select dish, ingredients, and quantities columns
 # ingreds_df = df_exp[["ingredients"]]
+freq_df = df_exp[["ingredients"]].value_counts()
 
+# convert series to dataframe
+freq_df = pd.DataFrame(freq_df)
+
+# reset index
+freq_df = freq_df.reset_index()
+
+# select unique ingredients
 unique_ingreds = df_exp[["ingredients"]].drop_duplicates(subset=['ingredients'], keep='first')
+
+# merge counts with unique ingredients
+unique_ingreds = pd.merge(unique_ingreds, freq_df, on='ingredients', how='left')
+
+# replace NaN values with 0
+unique_ingreds['count'].fillna(0, inplace=True)
+
+# Convert the 'float_column' to an integer
+unique_ingreds['count'] = unique_ingreds['count'].astype(int)
+
+# replace whitespace with single space
 unique_ingreds.ingredients = unique_ingreds.ingredients.replace(r'\s+', ' ', regex=True)
 
+# convert all characters in 'ingredients' to lowercase
+unique_ingreds['ingredients'] = unique_ingreds['ingredients'].str.lower()
+
+# sort unique_ingreds by count in descending order
+unique_ingreds = unique_ingreds.sort_values(by='count', ascending=False)
+
+# add unique id for each ingredient
 unique_ingreds["ingredients_id"] = unique_ingreds.index
 
-unique_ingreds[["ingredients_id", "ingredients"]].to_csv('data/unique_ingredients.csv', index=False)
+# save unique ingredients dataframe to csv
+unique_ingreds[["ingredients_id", "ingredients", "count"]].to_csv('data/unique_ingredients.csv', index=False)
 
 # -----------------------------------------
 # -----------------------------------------
