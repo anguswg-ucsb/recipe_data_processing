@@ -4,6 +4,12 @@ import ast
 import numpy as np
 import json
 
+# TODO: I'm not sure which of these functions is deletable and which are being used in db_prep.py, so I'm leaving them all here for now
+# TODO: consilidate all of the cleaning functions into one function that takes in a dataframe and returns a cleaned dataframe
+# TODO: this process is going to have to be unique per dataset, so we'll need to create a new function for each dataset we bring in
+# TODO: Also create a function that takes in a list of file paths and binds them together into one master dataframe
+# TODO: Create a function that creates the unique_ingredients dataset
+
 def clean_text(text):
     """
     Clean and preprocess text.
@@ -121,6 +127,7 @@ def json_dump_list_cols(df):
 
     return df
 
+# Create proper JSON columns in NER dataset
 def list_to_json_dump(df):
 
     # conversion function:

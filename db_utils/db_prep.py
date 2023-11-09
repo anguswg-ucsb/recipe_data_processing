@@ -12,9 +12,39 @@ import os
 from db_utils.config import *
 from db_utils.utils import *
 
-# ------------------------------
-# Create/Clean Pandas DataFrame:
-# ------------------------------
+# TODO: Recreate the steps outlined below to create a unique processing script for each dataset we find
+# # Steps to take for each new dataset:
+# 1. Specify location of dataset
+# 2. Specify a location to save out the cleaned dataset
+# 3. Read in Dataset
+# 4. Clean + process dataset (create unique functions for each unique dataset we bring in to get them into the final output schema)
+# 5. save out cleaned dataset
+
+# TODO: Create a file that loads in all of our processed datasets, binds them together into one master dataset 
+# TODO: and saves this master dataset to a specified location
+# TODO: In this script (or in a separate one, whichever makes more sense), use the master dataset to generate the "unique_ingredients" dataset 
+
+# -------------------
+# Process NER dataset
+# -------------------
+
+# TODO: I'm picturing we have a folder, for example, on your Desktop named ~/Desktop/recipe_data/
+# Subfolders: 
+# ~/Desktop/recipe_data/
+# - ~/Desktop/recipe_data/raw
+#    - ~/Desktop/recipe_data/processed/raw_dataset1.csv
+#    - ~/Desktop/recipe_data/processed/raw_dataset2.csv
+#    - ~/Desktop/recipe_data/processed/raw_dataset3.csv
+# - ~/Desktop/recipe_data/processed
+#    - ~/Desktop/recipe_data/processed/cleaned_dataset1.csv
+#    - ~/Desktop/recipe_data/processed/cleaned_dataset2.csv
+#    - ~/Desktop/recipe_data/processed/cleaned_dataset3.csv
+# - ~/Desktop/recipe_data/output
+#    - ~/Desktop/recipe_data/output/dish_recipes.csv
+#    - ~/Desktop/recipe_data/output/unique_ingredients.csv
+
+source_path = "path/to/some/source/dataset"
+out_path = "path/to/save/output/dataset.csv"
 
 # Create variable for csv file path to recipe dataset
 file_path = '/Users/anguswatters/Desktop/recipes/data/raw/full_dataset.csv'
@@ -35,17 +65,21 @@ recipes["dish_id"] = recipes.index
 recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
 recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
 
-# test dataset
+# save smaller version of dataset
 recipes.head(500000)[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes2.csv', index=False)
 
-# Split dataset into two tables, one for dish details and one for dish ingredients, with dish_id as the primary key
-recipes[["dish_id", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
-recipes[["dish_id", "dish", "directions"]].to_csv('data/directions_table.csv', index=False)
-recipes[["dish_id", "dish", "quantities"]].to_csv('data/quantities_table.csv', index=False)
+# # Split dataset into two tables, one for dish details and one for dish ingredients, with dish_id as the primary key
+# recipes[["dish_id", "dish", "ingredients"]].to_csv('data/dish_table.csv', index=False)
+# recipes[["dish_id", "dish", "directions"]].to_csv('data/directions_table.csv', index=False)
+# recipes[["dish_id", "dish", "quantities"]].to_csv('data/quantities_table.csv', index=False)
 
-# -----------------------------------------
+# TODO: Process to generate unique ingredients dataset
+# -----------------------------------
+# Generate unique ingredients dataset
+# -----------------------------------
+
+# Drop duplicates in data
 # Explode ingredients list into long format
-# -----------------------------------------
 
 recipes_dedup = recipes.drop_duplicates(subset=['dish'], keep='first')
 # duplicate = recipes[recipes.duplicated("dish")]
@@ -68,130 +102,11 @@ df_exp = recipes.explode(['ingredients']).reset_index(drop=True)
 unique_ingreds = df_exp[["ingredients"]].drop_duplicates(subset=['ingredients'], keep='first')
 unique_ingreds.ingredients = unique_ingreds.ingredients.replace(r'\s+', ' ', regex=True)
 
+# Add a unique ingredients_id to act as the primary key
 unique_ingreds["ingredients_id"] = unique_ingreds.index
 
+# reorder columns and save unique ingredients dataset 
 unique_ingreds[["ingredients_id", "ingredients"]].to_csv('data/unique_ingredients.csv', index=False)
 
 # -----------------------------------------
 # -----------------------------------------
-
-# Connect to PostgreSQL server
-conn = psycopg2.connect(
-    host     = 'localhost', 
-    port     = '5432', 
-    dbname   = 'postgres', 
-    user     = 'postgres', 
-    password = '1224'
-    )
-
-# Create cursor object to interact with the database
-cur = conn.cursor()
-
-# Establish table name to be created
-table_name = 'single_ingredients_db'
-
-# SQL query to create table if it doesn't exist
-create_long_table_query = sql.SQL("""
-    CREATE TABLE IF NOT EXISTS {} (
-        id SERIAL PRIMARY KEY,
-        dish TEXT,
-        ingredients TEXT,
-        quantities TEXT[]     
-    )""").format(sql.Identifier(table_name))
-
-# Excute create table command
-cur.execute(create_long_table_query)
-
-# Commit changes to the database
-conn.commit()
-
-# Close cursor and connection
-cur.close()
-conn.close()
-
-# Connect to PostgreSQL server
-conn = psycopg2.connect(
-    host     = 'localhost', 
-    port     = '5432', 
-    dbname   = 'postgres', 
-    user     = 'postgres', 
-    password = '1224'
-    )
-
-# Establish DB engine
-engine = create_engine("postgresql://postgres:1224@localhost:5432/postgres")
-
-# Write recipes data to DB by appending to already created DB above
-df_exp.to_sql(
-    name      = table_name, 
-    con       = engine, 
-    if_exists = 'append', 
-    index     = False
-    )
-
-# Close cursor and connection
-cur.close()
-conn.close()
-
-# ------------------------------------------
-# Create Table and Insert Data into Postgres
-# ------------------------------------------
-
-# Connect to PostgreSQL server
-conn = psycopg2.connect(
-    host     = 'localhost', 
-    port     = '5432', 
-    dbname   = 'postgres', 
-    user     = 'postgres', 
-    password = '1224'
-    )
-
-# conn = pg.connect(url)
-
-# Create cursor object to interact with the database
-cur = conn.cursor()
-
-# Establish table name to be created
-table_name = 'dish_db'
-
-# SQL query to create table if it doesn't exist
-create_table_query = sql.SQL("""
-    CREATE TABLE IF NOT EXISTS {} (
-        dish TEXT,
-        ingredients TEXT[]                
-    )""").format(sql.Identifier(table_name))
-
-# Excute create table command
-cur.execute(create_table_query)
-
-# Commit changes to the database
-conn.commit()
-
-# Close cursor and connection
-cur.close()
-conn.close()
-
-# Connect to PostgreSQL server
-conn = psycopg2.connect(
-    host     = 'localhost', 
-    port     = '5432', 
-    dbname   = 'postgres', 
-    user     = 'postgres', 
-    password = '1224'
-    )
-
-# Establish DB engine
-# engine = create_engine("postgresql://postgres:1224@localhost:5432/postgres")
-
-# Write recipes data to DB by appending to already created DB above
-recipes.to_sql(
-    name      = table_name, 
-    con       = engine, 
-    if_exists = 'append', 
-    index     = False
-    )
-
-
-# Close cursor and connection
-cur.close()
-conn.close()
