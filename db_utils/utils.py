@@ -162,3 +162,96 @@ def list_to_json_dump(df):
     # df['directions'] = df['directions'].apply(lambda x: json.dumps(x))
 
     return df
+
+
+def process_ner_dataset(df):
+    """Process NER recipes dataset
+
+    Args:
+        df (pandas.DataFrame): Raw NER dataset
+
+    Returns:
+        pandas.DataFrame: Cleaned NER dataset
+    """
+
+    # Clean pandas dataframe and save to parquet
+    df = clean_raw_data(df)
+
+    # make list columns into sets for insertion into postgres DB
+    df = list_to_json_dump(df)
+
+    # Add a unique dish_id to act as the primary key
+    df["dish_id"] = df.index
+
+    # Save cleaned dataframe as parquet and csv files
+    df = df[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']]
+    # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
+    # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
+
+    return df
+
+
+def create_unique_ingredients(df):
+    """Create unique ingredients dataset
+
+    Args:
+        df (pandas.DataFrame): Raw NER dataset
+
+    Returns:
+        pandas.DataFrame: Unique ingredients dataset
+    """
+
+    # df = recipes2.head(5)
+
+    # # convert json dictionary column to dictionary and then list
+    # df['ingredients'].apply(json.loads)
+
+    # Select just ingredients column
+    df = df[["ingredients"]]
+
+    df["ingredients"] = df["ingredients"].apply(lambda row: json.loads(row)['ingredients'])
+
+    # explode "ingredients" list column to make an individual row for each ingredients in each dish
+    df = df.explode(['ingredients']).reset_index(drop=True)
+
+    # replace whitespace with single space
+    df["ingredients"] = df["ingredients"].replace(r'\s+', ' ', regex=True)
+
+    # convert all characters in 'ingredients' to lowercase
+    df['ingredients'] = df['ingredients'].str.lower()
+
+    # CREATE FREQUENCY DATAFRAME
+    # ingreds_df = df[["ingredients"]]
+    freq_df = df[["ingredients"]].value_counts()
+
+    # convert series to dataframe
+    freq_df = pd.DataFrame(freq_df)
+
+    # reset index
+    freq_df = freq_df.reset_index()
+
+    # select unique ingredients
+    unique_ingreds = df[["ingredients"]].drop_duplicates(subset=['ingredients'], keep='first')
+
+    # merge counts with unique ingredients
+    unique_ingreds = pd.merge(unique_ingreds, freq_df, on='ingredients', how='left')
+
+    # replace NaN values with 0
+    unique_ingreds['count'].fillna(0, inplace=True)
+
+    # Convert the 'float_column' to an integer
+    unique_ingreds['count'] = unique_ingreds['count'].astype(int)
+
+    # sort unique_ingreds by count in descending order
+    unique_ingreds = unique_ingreds.sort_values(by='count', ascending=False)
+
+    # add unique id for each ingredient
+    unique_ingreds["ingredients_id"] = unique_ingreds.index
+
+    # reorder columns
+    unique_ingreds = unique_ingreds[["ingredients_id", "ingredients", "count"]]
+
+    # # save unique ingredients dataframe to csv
+    # unique_ingreds[["ingredients_id", "ingredients", "count"]].to_csv('data/unique_ingredients.csv', index=False)
+
+    return unique_ingreds
