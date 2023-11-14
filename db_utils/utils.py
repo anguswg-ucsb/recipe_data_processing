@@ -164,14 +164,14 @@ def list_to_json_dump(df):
     return df
 
 
-def process_dataset_glorf(df):
-    """Process NER recipes dataset
+def process_dataset_recipeNLG(df):
+    """Process recipeNLG dataset
 
     Args:
-        df (pandas.DataFrame): Raw NER dataset
+        df (pandas.DataFrame): Raw recipeNLG dataset
 
     Returns:
-        pandas.DataFrame: Cleaned NER dataset
+        pandas.DataFrame: Cleaned recipeNLG dataset
     """
 
     # Clean pandas dataframe and save to parquet
