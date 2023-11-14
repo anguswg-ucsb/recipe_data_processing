@@ -164,7 +164,7 @@ def list_to_json_dump(df):
     return df
 
 
-def process_ner_dataset(df):
+def process_dataset_glorf(df):
     """Process NER recipes dataset
 
     Args:
