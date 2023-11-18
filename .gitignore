@@ -167,8 +167,6 @@ data/
 
 rest_api/.env
 rest_api/config.py
-db_utils/config.py
-config.py
 
 # terraform folder ignore
 terraform.tfstate
@@ -186,8 +184,6 @@ tfplan
 !main.tf
 
 variables.tf
-
-config.py
 
 .DS_Store
 **/.DS_Store
