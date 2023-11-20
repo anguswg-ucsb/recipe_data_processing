@@ -8,7 +8,7 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 class Config:
 
     # Base directory and path configurations
-    BASE_DIR_NAME = "recipe_data"
+    BASE_DIR_NAME = "recipes_out"
     BASE_DIR_PATH = os.getenv("BASE_DIR_PATH")
 
     # Define paths for raw, processed, and output directories

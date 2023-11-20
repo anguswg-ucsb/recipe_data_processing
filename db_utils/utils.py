@@ -106,6 +106,13 @@ def clean_raw_data(df):
     df['uid'] = df['uid'].str.replace('\W', '', regex=True)
     df['uid'] = df['uid'] + "_" + df['n'].astype(str)
 
+    # sort by lowercased values
+    def lowercase_sort(lst):
+        return sorted(lst, key=lambda x: x.lower()) 
+    
+    # sort the ingredients in each dish
+    df = df.assign(ingredients = lambda x: (x["ingredients"].apply(lowercase_sort)))
+
     # Reorder columns in the DataFrame
     df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
     
