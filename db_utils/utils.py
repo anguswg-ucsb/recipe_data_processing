@@ -262,3 +262,10 @@ def create_unique_ingredients(df):
     # unique_ingreds[["ingredients_id", "ingredients", "count"]].to_csv('data/unique_ingredients.csv', index=False)
 
     return unique_ingreds
+
+# tmp = recipes[recipes["dish"] == "Broken Glass Dessert"]
+# # tmp = recipes[recipes["dish_id"] == 14670]
+# xx = json.loads(tmp.ingredients.values[0])
+# tmp
+# xx["ingredients"]
+# tmp[["dish"]].drop_duplicates(subset=['dish'], keep='first')
