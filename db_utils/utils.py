@@ -53,6 +53,20 @@ def split_text(text):
     text = ' '.join(text).split()
     return text
 
+# Extract base URLs from list of URLs in recipeNLG dataset
+def extract_base_url(url):
+
+    extensions = ['.com', '.net', '.org', '.io', '.dev', '.ai', '.inc', 'co']
+
+    for extension in extensions:
+        # # print(f"Extracting base URLs for extension: {extension}")
+        pattern = re.compile(fr'(www\..*?{re.escape(extension)})')
+        # pattern = re.compile(fr'(www\..*?\{extension})')
+
+        if pattern.search(url):
+            return pattern.search(url).group(1)
+
+    return "NA"
 
 def clean_raw_data(df):
     """
@@ -67,7 +81,7 @@ def clean_raw_data(df):
     
     # Drop unnecessary columns and rename
     df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
-    df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients'})
+    df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients', 'link':'url'})
 
     # # Add a unique 'ID' column to the DataFrame
     # df['id'] = pd.RangeIndex(start=1, stop=len(df) + 1)
@@ -113,8 +127,14 @@ def clean_raw_data(df):
     # sort the ingredients in each dish
     df = df.assign(ingredients = lambda x: (x["ingredients"].apply(lowercase_sort)))
 
+    # create a base_url column from the URL column
+    df = df.assign(base_url = lambda x: (x["url"].apply(extract_base_url)))
+
+    # create a column for the image url with a default value of "NA"
+    df = df.assign(img = "NA")
+
     # Reorder columns in the DataFrame
-    df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions"]]
+    df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions", "url", "base_url", "img"]]
     
     return df
 
@@ -170,7 +190,6 @@ def list_to_json_dump(df):
 
     return df
 
-
 def process_dataset_recipeNLG(df):
     """Process recipeNLG dataset
 
@@ -180,6 +199,11 @@ def process_dataset_recipeNLG(df):
     Returns:
         pandas.DataFrame: Cleaned recipeNLG dataset
     """
+    # df = recipes.head(500000)
+    # df = recipes[1200000:1250000]
+    # df = recipes[1750000:2000000]
+    
+    # clean_raw_data(df)
 
     # Clean pandas dataframe and save to parquet
     df = clean_raw_data(df)
@@ -191,7 +215,7 @@ def process_dataset_recipeNLG(df):
     df["dish_id"] = df.index
 
     # Save cleaned dataframe as parquet and csv files
-    df = df[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']]
+    df = df[['dish_id', 'dish', 'ingredients', 'quantities', 'directions', 'url', 'base_url', 'img']]
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
 

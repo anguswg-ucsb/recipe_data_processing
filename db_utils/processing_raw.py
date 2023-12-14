@@ -47,7 +47,9 @@ for file_name in file_list:
 # Generate filenames to process if reprocess_flag is True OR if file does not exist in processed directory
 filenames_to_process = {}
 for dataset_specification in dataset_specifications:
+    print(f"Checking if file needs processing: {dataset_specification}")
     file_needs_processing = reprocess_flag or not os.path.isfile(os.path.join(processed_dir, f"processed_dataset_{dataset_specification}.csv"))
+
     if file_needs_processing:
         filenames_to_process[dataset_specification] = f"raw_dataset_{dataset_specification}.csv"
 
@@ -70,6 +72,14 @@ processed_paths = {spec: os.path.join(processed_dir, processed_filename) for spe
 # value = list of paths [raw_path, processed_path]
 raw_to_processed_paths = {spec: [retrieve_raw_paths[spec], processed_paths[spec]] for spec in retrieve_raw_paths}
 
+
+# # -----------------------------------------------
+# # ------------- LOCAL datasets ----------------
+# # -----------------------------------------------
+# recipe_path = os.path.join(raw_dir, "raw_dataset_recipeNLG.csv")
+
+# recipes = pd.read_csv(recipe_path)
+
 # -----------------------------------------------
 # ------------- Process datasets ----------------
 # -----------------------------------------------
@@ -79,7 +89,7 @@ processed_dfs = []
 
 # Process datasets by iterating through the key-value pairs in retrieve_raw_paths
 for key, [raw_path, processed_path] in raw_to_processed_paths.items():
-
+    print(f"Processing dataset: {key}")
     # Read CSV file containing data into pandas dataframe
     recipes = pd.read_csv(raw_path)
 
@@ -91,6 +101,7 @@ for key, [raw_path, processed_path] in raw_to_processed_paths.items():
         process_function = globals()[function_name]
 
         recipes = process_function(recipes)
+        # recipes[recipes['dish_id'] == 2231139].url
 
         # append the processed dataframe to the list
         processed_dfs.append(recipes)
@@ -106,7 +117,8 @@ processed_dfs = pd.concat(processed_dfs, ignore_index=True)
 
 # Save processed datasets as CSV to the output directory
 processed_dfs.to_csv(f"{output_dir}/dish_recipes.csv", index=False)
-processed_dfs.head(750000).to_csv(f"{output_dir}/dish_recipes_small.csv", index=False)
+processed_dfs.head(750000).to_csv(f"{output_dir}/dish_recipes2.csv", index=False)
+# processed_dfs.head(750000).to_csv(f"{output_dir}/dish_recipes_small.csv", index=False)
 
 # -----------------------------------------------
 # ----- Generate unique ingredients dataset -----
