@@ -187,3 +187,12 @@ variables.tf
 
 .DS_Store
 **/.DS_Store
+
+# terraform folder ignore
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/terraform.tfvars
+infra/.terraform.lock.hcl
+infra/.terraform/
+infra/tfplan
+infra/variables.tf

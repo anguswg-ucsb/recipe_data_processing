@@ -78,9 +78,14 @@ def clean_raw_data(df):
     Returns:
         pandas.DataFrame
     """
-    
+    # recipes.source
+    # df = recipes.head(10)
+    # df.source.unique()
+
+
     # Drop unnecessary columns and rename
-    df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
+    df = df.drop(columns=['Unnamed: 0'], axis=1)
+    # df = df.drop(columns=['Unnamed: 0', 'source'], axis=1)
     df = df.rename(columns={'title': 'dish', 'ingredients': 'quantities', 'NER': 'ingredients', 'link':'url'})
 
     # # Add a unique 'ID' column to the DataFrame
@@ -96,8 +101,9 @@ def clean_raw_data(df):
     df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[^A-Za-z ]', '', s).strip() for s in x])
 
     # split up the words in the list of ingredients
-    # Call split_text function to split cleaned 'ingredients' column, creating a new 'split_ingredients' column
-    df['split_ingredients'] = df['ingredients'].apply(lambda x: " ".join(x).split())
+    # # Call split_text function to split cleaned 'ingredients' column, creating a new 'split_ingredients' column
+    # df['split_ingredients'] = df['ingredients'].apply(lambda x: " ".join(x).split())
+
     # df['split_ingredients'] = df['tmp_ingredients'].apply(split_text)
 
     # # Reorder columns in the DataFrame
@@ -106,7 +112,7 @@ def clean_raw_data(df):
 
     # any dishes with missing values, replace with the word "missing"
     df['dish'] = df['dish'].str.replace(r'[\x00-\x19]', '').replace('', 'missing')
-
+    
     # santize list columns by removing unicode values
     df['ingredients'] = df['ingredients'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
     df['quantities'] = df['quantities'].apply(lambda x: [re.sub('[\x00-\x19]', '', s) for s in x])
@@ -132,9 +138,38 @@ def clean_raw_data(df):
 
     # create a column for the image url with a default value of "NA"
     df = df.assign(img = "NA")
+    
+    # Add columns with missing values of the specified types
+    df['description'] = ""  # Int64 with missing values
 
-    # Reorder columns in the DataFrame
-    df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions", "url", "base_url", "img"]]
+    df['prep_time']  = 0    # int64 with missing values
+    df['cook_time']  = 0    # int64 with missing values
+    df['total_time'] = 0    # int64 with missing values
+    df['ratings']    = 0.0  # float64 with missing values
+    # df['prep_time'] = np.nan  # float64 with missing values
+
+    df['yields']    = ""  # string with missing values
+    df['category']  = [None] * len(df)  # list of strings with missing values
+    df['cuisine']   = [None] * len(df)  # list of strings with missing values
+
+    # Extract the text between the two periods
+    df['source2'] = df['base_url'].str.extract('\.(.*?)\.')
+
+    # Conditionally assign values to 'source2' based on 'source'
+    df['source'] = np.where(df['source'] == 'Gathered', df['source2'], df['source'])
+
+    # Drop the 'source2' column
+    df.drop(columns=['source2'], inplace=True)
+
+    # # Reorder columns in the DataFrame
+    # df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions", "url", "base_url", "img"]]
+
+    # Reorder and select columns in dataFrame
+    df = df[['uid', 'dish', 'ingredients', 
+            #  'split_ingredients',
+            'quantities', 'directions', 'description',
+            'prep_time', 'cook_time', 'total_time', 'yields',  # 'nutrients', 
+            'category', 'cuisine','ratings', 'url', 'base_url', 'img', 'source']]
     
     return df
 
@@ -142,7 +177,7 @@ def fix_list_cols(df):
     df['ingredients'] = df['ingredients'].apply(set)
     df['directions'] = df['directions'].apply(set)
     df['quantities'] = df['quantities'].apply(set)
-    df['split_ingredients'] = df['split_ingredients'].apply(set)
+    # df['split_ingredients'] = df['split_ingredients'].apply(set)
 
     return df
 
@@ -150,7 +185,7 @@ def json_dump_list_cols(df):
     df['ingredients'] = df['ingredients'].apply(json.dumps)
     df['directions'] = df['directions'].apply(json.dumps)
     df['quantities'] = df['quantities'].apply(json.dumps)
-    df['split_ingredients'] = df['split_ingredients'].apply(json.dumps)
+    # df['split_ingredients'] = df['split_ingredients'].apply(json.dumps)
 
     return df
 
@@ -172,13 +207,13 @@ def list_to_json_dump(df):
     # df["quantities_json"] = df.quantities_json.map(dict2json)
     # df["directions_json"] = df.directions_json.map(dict2json)
     df["ingredients"] = df.apply(lambda row: {"ingredients":row['ingredients']}, axis=1)
-    df["split_ingredients"] = df.apply(lambda row: {"split_ingredients":row['split_ingredients']}, axis=1)
+    # df["split_ingredients"] = df.apply(lambda row: {"split_ingredients":row['split_ingredients']}, axis=1)
     df["quantities"] = df.apply(lambda row: {"quantities":row['quantities']}, axis=1)
     df["directions"] = df.apply(lambda row: {"directions":row['directions']}, axis=1)
 
 
     df["ingredients"] = df.ingredients.map(dict2json)
-    df["split_ingredients"] = df.split_ingredients.map(dict2json)
+    # df["split_ingredients"] = df.split_ingredients.map(dict2json)
     df["quantities"] = df.quantities.map(dict2json)
     df["directions"] = df.directions.map(dict2json)
 
@@ -214,8 +249,15 @@ def process_dataset_recipeNLG(df):
     # Add a unique dish_id to act as the primary key
     df["dish_id"] = df.index
 
+    # # Save cleaned dataframe as parquet and csv files
+    # df = df[['dish_id', 'dish', 'ingredients', 'quantities', 'directions', 'url', 'base_url', 'img']]
+    
     # Save cleaned dataframe as parquet and csv files
-    df = df[['dish_id', 'dish', 'ingredients', 'quantities', 'directions', 'url', 'base_url', 'img']]
+    df = df[['dish_id', 'uid', 'dish', 'ingredients',
+            #   'split_ingredients', 
+            'quantities', 'directions', 'description',
+            'prep_time', 'cook_time', 'total_time', 'yields',  # 'nutrients', 
+            'category', 'cuisine','ratings', 'url', 'base_url', 'img', 'source']]
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
 

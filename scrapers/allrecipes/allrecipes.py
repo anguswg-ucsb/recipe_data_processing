@@ -1,6 +1,6 @@
 
 # import helper utility functions from scraper_utils.py
-from scrapers.scraper_utils import *
+from scrapers.allrecipes.allrecipes_utils import *
 # from scrapers.scraper_utils import get_AZ_base_urls, scrape_recipes, get_recipe_urls
 
 ###########################################################
@@ -16,7 +16,8 @@ base_urls = [
     "https://www.allrecipes.com/recipes/17057/everyday-cooking/more-meal-ideas/5-ingredients/main-dishes/", 
     "https://www.allrecipes.com/recipes/1947/everyday-cooking/quick-and-easy/", 
     "https://www.allrecipes.com/recipes/17485/everyday-cooking/quick-and-easy/breakfast-and-brunch/",
-    "https://www.allrecipes.com/recipes/455/everyday-cooking/more-meal-ideas/30-minute-meals/"
+    "https://www.allrecipes.com/recipes/455/everyday-cooking/more-meal-ideas/30-minute-meals/",
+    "https://www.allrecipes.com/recipes/17561/lunch/"
     ] 
 
 ##############################################################################
@@ -32,17 +33,19 @@ for az_page in az_pages:
     print(f"Scraping recipes from {az_page}")
 
     # Get list of AZ base URLs
-    az_urls = get_AZ_base_urls(az_page)
+    az_urls = get_allrecipes_AZ_base_urls(az_page)
 
     # Add A-Z base URLs to 'base_url' list 
     base_urls.extend(az_urls)
+
+len(base_url)
 
 #########################################################
 # Get Recipe data from each base URLs in base_urls list #
 #########################################################
 
 # Number of results to return from each base URL (None returns all results), limiting this number to not overload allrecipes.com with requests
-limit = 5
+limit = 1
 
 # Scrape recipes and get the list of dictionaries
 # This recipes data can be converted to a pandas dataframe, and saved to a CSV file and added to our dataset (still needs to be cleaned to match the rest of the data)
