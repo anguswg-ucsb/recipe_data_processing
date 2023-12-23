@@ -19,15 +19,13 @@ provider "aws" {
 # paths to Lambda zip files and tag variables
 
 locals {
-  # airtable_lambda_zip = "../deploy/lambda_function.zip"
-    airtable_to_sqs_zip = "../deploy/airtable_to_sqs.zip"
-    stage_s3_to_prod_s3_zip = "../deploy/stage_s3_to_prod_s3.zip"
-    name_tag = "mros"
+    s3_recipe_scraper_lambda_zip = "../deploy/s3_recipe_scraper.zip"
+    name_tag = "recipe-scraper"
 }
 
-###############################
-# S3 bucket for airtable data #
-###############################
+#######################################
+# S3 bucket for raw recipes JSON data #
+#######################################
 
 # s3 bucket for raw data
 resource "aws_s3_bucket" "raw_s3_bucket" {
@@ -35,7 +33,7 @@ resource "aws_s3_bucket" "raw_s3_bucket" {
 }
 
 #######################################
-# S3 bucket permissions airtable data #
+# S3 bucket permissions for raw data #
 #######################################
 
 # s3 bucket ownership controls
@@ -119,6 +117,86 @@ resource "aws_s3_bucket_notification" "raw_s3_bucket_notification" {
   }
 }
 
+#######################
+# S3 bucket for stage #
+#######################
+
+# s3 bucket for raw data
+resource "aws_s3_bucket" "stage_s3_bucket" {
+  bucket = var.stage_s3_bucket_name
+}
+
+##################################
+# S3 bucket permissions stage    #
+##################################
+
+# s3 bucket ownership controls
+resource "aws_s3_bucket_ownership_controls" "stage_s3_bucket_ownership_controls" {
+  bucket = aws_s3_bucket.stage_s3_bucket.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+# s3 bucket public access block
+resource "aws_s3_bucket_public_access_block" "stage_s3_public_access_block" {
+  bucket = aws_s3_bucket.stage_s3_bucket.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_acl" "stage_s3_bucket_acl" {
+  depends_on = [
+    aws_s3_bucket_ownership_controls.stage_s3_bucket_ownership_controls,
+    aws_s3_bucket_public_access_block.stage_s3_public_access_block,
+  ]
+
+  bucket = aws_s3_bucket.stage_s3_bucket.id
+  acl    = "private"
+}
+
+data "aws_iam_policy_document" "stage_s3_bucket_policy_document" {
+  statement {
+    sid = "AllowCurrentAccount"
+    effect = "Allow"
+
+    principals {
+      type = "AWS"
+      identifiers = ["*"]
+    }
+
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:ListBucket"
+    ]
+
+    resources = [
+      aws_s3_bucket.stage_s3_bucket.arn,
+      "${aws_s3_bucket.stage_s3_bucket.arn}/*"
+    ]
+
+    condition {
+      test = "StringEquals"
+      variable = "aws:PrincipalAccount"
+      values = [var.aws_account_number]
+    }
+  }
+}
+
+# s3 bucket policy to allow public access
+resource "aws_s3_bucket_policy" "stage_bucket_policy" {
+  bucket = aws_s3_bucket.stage_s3_bucket.id
+  policy = data.aws_iam_policy_document.stage_s3_bucket_policy_document.json
+  depends_on = [
+    aws_s3_bucket_acl.stage_s3_bucket_acl,
+    aws_s3_bucket_ownership_controls.stage_s3_bucket_ownership_controls,
+    aws_s3_bucket_public_access_block.stage_s3_public_access_block,
+  ]
+}
+
 ###############################
 # S3 bucket for lambda function code #
 ###############################
@@ -128,24 +206,11 @@ resource "aws_s3_bucket" "lambda_s3_bucket" {
   bucket = var.lambda_s3_bucket_name
 }
 
-###############################
-#  Lambda function #
-###############################
-
-# lambda function to react to s3 event and augment data
-resource "aws_lambda_function" "airtable_to_sqs_lambda" {
-  filename      = local.airtable_to_sqs_zip
-  function_name = "airtable_to_sqs_lambda"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.8"
-  memory_size   = 128
-  timeout       = 300
-  source_code_hash = filebase64sha256(local.airtable_to_sqs_zip)
-  depends_on = [
-    aws_s3_bucket_notification.raw_s3_bucket_notification,
-    aws_s3_bucket.lambda_s3_bucket,
-  ]
+# s3 object for lambda code process_staging function
+resource "aws_s3_object" "recipe_scraper_lambda_code_object" {
+  bucket = aws_s3_bucket.lambda_s3_bucket.bucket
+  key    = var.s3_recipe_scraper_lambda_zip_filename
+  source = local.s3_recipe_scraper_lambda_zip
 }
 
 ##################################
@@ -199,7 +264,7 @@ data "aws_iam_policy_document" "lambda_s3_policy_doc" {
     effect = "Allow"
 
     actions = [
-     "s3:GetObject", 
+          "s3:GetObject", 
           "s3:PutObject",
           "s3:ListBucket"
     ]
@@ -207,6 +272,8 @@ data "aws_iam_policy_document" "lambda_s3_policy_doc" {
     resources = [
       aws_s3_bucket.raw_s3_bucket.arn,
       "${aws_s3_bucket.raw_s3_bucket.arn}/*",
+      aws_s3_bucket.stage_s3_bucket.arn,
+      "${aws_s3_bucket.stage_s3_bucket.arn}/*",
     ]
   }
 
@@ -231,12 +298,11 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_policy_attachment" {
 }
 
 ######################################
-# Lambda Log Group (airtable_to_sqs) #
+# Lambda Log Group (recipe scraper lambda) #
 ######################################
 
-# Cloudwatch log group for 'airtable_to_sqs' Python lambda function
+# Cloudwatch log group for 'raw_recipes_lambda_log_group' Python lambda function
 resource "aws_cloudwatch_log_group" "raw_recipes_lambda_log_group" {
-  # name              = "/aws/lambda/${var.airtable_to_sqs_lambda_function_name}"
   name_prefix              = "/aws/lambda/${var.raw_lambda_function_name}"
   retention_in_days = 14
   skip_destroy = true
@@ -244,7 +310,7 @@ resource "aws_cloudwatch_log_group" "raw_recipes_lambda_log_group" {
 
 
 ###############################################################
-# Lambda Logging Policy (mros-airtable-processor-logging-policy) 
+# Lambda Logging Policy 
 # - Allow Lambda to send logs to CloudWatch Logs #
 ###############################################################
 
@@ -275,6 +341,26 @@ resource "aws_iam_role_policy_attachment" "lambda_logs_policy_attachment" {
 ####################################
 # Lambda Function (Airtable to S3) #
 ####################################
+###############################
+#  Lambda function #
+###############################
+
+# # lambda function to react to s3 event and augment data
+# resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
+#   filename      = local.s3_recipe_scraper_lambda_zip
+#   function_name = var.raw_lambda_function_name
+#   role          = aws_iam_role.lambda_role.arn
+#   handler       = "s3_recipe_scraper.s3_recipe_scraper.s3_recipe_scraper"
+#   runtime          = "python3.11"
+#   architectures    = ["x86_64"]
+#   # memory_size   = 128
+#   timeout         = 450
+#   source_code_hash = filebase64sha256(local.s3_recipe_scraper_lambda_zip)
+#   depends_on = [
+#     aws_s3_bucket_notification.raw_s3_bucket_notification,
+#     aws_s3_bucket.lambda_s3_bucket,
+#   ]
+# }
 
 # lambda function to process csv file
 resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
@@ -293,21 +379,34 @@ resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
     variables = {
         CW_LOG_GROUP = aws_cloudwatch_log_group.raw_recipes_lambda_log_group.name,
         S3_BUCKET = "s3://${aws_s3_bucket.raw_s3_bucket.bucket}",
+        OUTPUT_S3_BUCKET = "s3://${aws_s3_bucket.stage_s3_bucket.bucket}",
+        SCRAPE_OPS_API_KEY = var.scrape_ops_api_key,
     }
   }
 
   # timeout in seconds
-  timeout         = 300
+  timeout         = 450
   
   depends_on = [
     aws_s3_bucket.lambda_bucket,
-    aws_s3_object.airtable_lambda_code_object,
+    aws_s3_object.recipe_scraper_lambda_code_object,
+    # aws_s3_bucket_notification.raw_s3_bucket_notification,
     aws_iam_role_policy_attachment.lambda_logs_policy_attachment,
     aws_cloudwatch_log_group.raw_recipes_lambda_log_group,
+    aws_s3_bucket.stage_s3_bucket,
   ]
   
   tags = {
     name              = local.name_tag
     resource_category = "lambda"
   }
+}
+
+# Allow S3 to invoke the Lambda function
+resource "aws_lambda_permission" "allow_s3_invoke" {
+  statement_id  = "AllowS3Invoke"
+  action        = "lambda:InvokeFunction"
+  function_name = "${aws_lambda_function.s3_recipe_scraper_lambda_function.arn}"
+  principal = "s3.amazonaws.com"
+  source_arn = "${aws_s3_bucket.raw_s3_bucket.arn}"
 }

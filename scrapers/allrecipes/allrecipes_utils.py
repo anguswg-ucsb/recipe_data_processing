@@ -67,21 +67,19 @@ def build_allrecipes_urls(
 
     # List of base URLs to get list of URLs of recipes
     base_urls = [
-        "https://www.allrecipes.com/recipes/17057/everyday-cooking/more-meal-ideas/5-ingredients/main-dishes/"
-        # "https://www.allrecipes.com/recipes/1947/everyday-cooking/quick-and-easy/",
-        # "https://www.allrecipes.com/recipes/17485/everyday-cooking/quick-and-easy/breakfast-and-brunch/",
-        # "https://www.allrecipes.com/recipes/455/everyday-cooking/more-meal-ideas/30-minute-meals/",
-        # "https://www.allrecipes.com/recipes/17561/lunch/",
-        # "https://www.allrecipes.com/recipes/841/holidays-and-events/christmas/desserts/christmas-cookies/"
+        "https://www.allrecipes.com/recipes/17057/everyday-cooking/more-meal-ideas/5-ingredients/main-dishes/",
+        "https://www.allrecipes.com/recipes/1947/everyday-cooking/quick-and-easy/",
+        "https://www.allrecipes.com/recipes/17485/everyday-cooking/quick-and-easy/breakfast-and-brunch/",
+        "https://www.allrecipes.com/recipes/455/everyday-cooking/more-meal-ideas/30-minute-meals/",
+        "https://www.allrecipes.com/recipes/17561/lunch/",
+        "https://www.allrecipes.com/recipes/841/holidays-and-events/christmas/desserts/christmas-cookies/"
         ] 
 
     # Get more base URLs from scraping page with recipes by ingredients from A-Z 
 
     # AZ base URLs of sections of foods to add to base_url list
-    # az_pages = ["https://www.allrecipes.com/ingredients-a-z-6740416", "https://www.allrecipes.com/recipes-a-z-6735880"]
-    az_pages = []
-
-    # az_pages = ["https://www.allrecipes.com/ingredients-a-z-6740416"]
+    az_pages = ["https://www.allrecipes.com/ingredients-a-z-6740416", "https://www.allrecipes.com/recipes-a-z-6735880"]
+    # az_pages = []
     
     recipe_list = []
 

@@ -3,6 +3,8 @@ import pandas as pd
 import ast
 import numpy as np
 import json
+import os 
+import urllib.parse
 
 # TODO: I'm not sure which of these functions is deletable and which are being used in db_prep.py, so I'm leaving them all here for now
 # TODO: consilidate all of the cleaning functions into one function that takes in a dataframe and returns a cleaned dataframe
@@ -27,7 +29,7 @@ def clean_text(text):
     # Iterate through split text, removing non-alphanumeric characters
     for idx, val in enumerate(text):
         text[idx] = re.sub('[^A-Za-z0-9 ]+', '', val)
-    
+
     # Create new_text list to store cleaned and lowercase text
     new_text = []
 
@@ -59,6 +61,8 @@ def extract_base_url(url):
     extensions = ['.com', '.net', '.org', '.io', '.dev', '.ai', '.inc', 'co']
 
     for extension in extensions:
+
+        "https://(.*?)(.com|.net|.io|.org|.dev|.ai|.inc|.co)"
         # # print(f"Extracting base URLs for extension: {extension}")
         pattern = re.compile(fr'(www\..*?{re.escape(extension)})')
         # pattern = re.compile(fr'(www\..*?\{extension})')
@@ -66,6 +70,32 @@ def extract_base_url(url):
         if pattern.search(url):
             return pattern.search(url).group(1)
 
+    return "NA"
+
+# Extract base URLs from list of URLs in recipeNLG dataset
+def extract_site_source(url):
+
+    # url = "https://www.cookbooks.com/Recipe-Details.aspx?"
+    # url = "https://cookbooks.com/Recipe-Details.aspx?"
+
+    # pattern = "https://(.*?).com|.net|.io|.org|.dev|.ai|.inc|.co"
+    pattern = r"https://(?:www\.)?(.*?).com|.net|.io|.org|.dev|.ai|.inc|.co"
+
+    regex_pattern = re.compile(pattern)
+    # regex_pattern.search(url).group(1)
+
+    if regex_pattern.search(url):
+        return regex_pattern.search(url).group(1)
+
+    return "NA"
+
+# Extract base URLs from list of URLs in recipeNLG dataset
+def extract_base_url2(url):
+    base_url = os.path.dirname(url)
+
+    if base_url:
+        return base_url
+    
     return "NA"
 
 def clean_raw_data(df):
@@ -132,9 +162,16 @@ def clean_raw_data(df):
     
     # sort the ingredients in each dish
     df = df.assign(ingredients = lambda x: (x["ingredients"].apply(lowercase_sort)))
+    # recipes
+    # df = recipes.head()
+    
+    # Add "https://" to the beginning of each URL if it doesn't already start with it
+    df['url'] = df['url'].apply(lambda x: "https://" + x if not x.startswith("https://") else x)
 
     # create a base_url column from the URL column
-    df = df.assign(base_url = lambda x: (x["url"].apply(extract_base_url)))
+    df = df.assign(base_url = lambda x: (x["url"].apply(extract_base_url2)))
+    # df = df.assign(site_source = lambda x: (x["url"].apply(extract_site_source)))
+    # df = df.assign(base_url = "NA")
 
     # create a column for the image url with a default value of "NA"
     df = df.assign(img = "NA")
@@ -148,12 +185,22 @@ def clean_raw_data(df):
     df['ratings']    = 0.0  # float64 with missing values
     # df['prep_time'] = np.nan  # float64 with missing values
 
+    # coerce all time values to Int64 and replace missing/NaN values with 0
+    df['cook_time']  = pd.to_numeric(df['cook_time'], errors='coerce').astype('Int64').fillna(0)
+    df['prep_time']  = pd.to_numeric(df['prep_time'], errors='coerce').astype('Int64').fillna(0)
+    df['total_time'] = pd.to_numeric(df['total_time'], errors='coerce').astype('Int64').fillna(0)
+
+    # coerce all ratings values to float64 and replace missing/NaN values with 0
+    df['ratings'] = pd.to_numeric(df['ratings'], errors='coerce').astype('float64').fillna(0) 
+
     df['yields']    = ""  # string with missing values
     df['category']  = [None] * len(df)  # list of strings with missing values
     df['cuisine']   = [None] * len(df)  # list of strings with missing values
 
     # Extract the text between the two periods
-    df['source2'] = df['base_url'].str.extract('\.(.*?)\.')
+    df["source2"] =df["base_url"].astype(str).apply(lambda x: urllib.parse.urlparse(x).hostname)
+    # df['source2'] = df['base_url'].str.extract('\.(.*?)\.')
+    # df['source2'] = df['url']
 
     # Conditionally assign values to 'source2' based on 'source'
     df['source'] = np.where(df['source'] == 'Gathered', df['source2'], df['source'])
@@ -163,13 +210,21 @@ def clean_raw_data(df):
 
     # # Reorder columns in the DataFrame
     # df = df[['uid', 'dish', 'ingredients', 'split_ingredients', "quantities", "directions", "url", "base_url", "img"]]
+    
+    # # Add "https://" to the beginning of each URL if it doesn't already start with it
+    # df['url'] = df['url'].apply(lambda x: "https://" + x if not x.startswith("https://") else x)
+
+    # # Add "https://" to the beginning of each URL
+    # df['url'] = df['url'].apply(lambda x: "https://" + x)
 
     # Reorder and select columns in dataFrame
     df = df[['uid', 'dish', 'ingredients', 
             #  'split_ingredients',
             'quantities', 'directions', 'description',
             'prep_time', 'cook_time', 'total_time', 'yields',  # 'nutrients', 
-            'category', 'cuisine','ratings', 'url', 'base_url', 'img', 'source']]
+            'category', 'cuisine','ratings', 'url', 
+            'base_url',
+            'img', 'source']]
     
     return df
 
@@ -257,7 +312,9 @@ def process_dataset_recipeNLG(df):
             #   'split_ingredients', 
             'quantities', 'directions', 'description',
             'prep_time', 'cook_time', 'total_time', 'yields',  # 'nutrients', 
-            'category', 'cuisine','ratings', 'url', 'base_url', 'img', 'source']]
+            'category', 'cuisine','ratings', 'url', 
+            # 'base_url', 
+            'img', 'source']]
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
     # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
 

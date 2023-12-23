@@ -10,6 +10,10 @@ class Config:
     # OpenAPI API Key
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+    # NordVPN credentials
+    NORDVPN_USERNAME = os.getenv("NORDVPN_USERNAME")
+    NORDVPN_PASSWORD = os.getenv("NORDVPN_PASSWORD")
+
     # Base directory and path configurations
     BASE_DIR_NAME = "recipes_out"
     BASE_DIR_PATH = os.getenv("BASE_DIR_PATH")
