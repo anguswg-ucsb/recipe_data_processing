@@ -132,7 +132,6 @@ def s3_recipe_scraper(event, context):
 
     S3_BUCKET = event['Records'][0]['s3']['bucket']['name']
     S3_FILE_NAME = event['Records'][0]['s3']['object']['key']
-    # SCRAPE_OPS_API_KEY="e0fa9730-1113-4c49-8ae3-898329be351a"
 
     print(f"- S3_BUCKET: {S3_BUCKET}")
     print(f"- S3_FILE_NAME: {S3_FILE_NAME}")
