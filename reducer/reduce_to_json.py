@@ -55,7 +55,7 @@ recipes_subset = processed_recipes[processed_recipes["source"] != "www.cookbooks
 
 # remove recipes from www.epicurious.com/recipes/member
 recipes_subset = recipes_subset[-recipes_subset['url'].str.contains('www.epicurious.com/recipes/member', case=False)]
-
+recipes_subset = recipes_subset[-recipes_subset['url'].str.contains('recipes-plus', case=False)]
 # tmp_df = recipes_subset.head(100000)
 
 # Create a new column representing the order within each group
@@ -64,14 +64,6 @@ recipes_subset['source_order'] = recipes_subset.groupby('source').cumcount()
 # Sort the DataFrame based on the new column and 'group_col'
 recipes_subset = recipes_subset.sort_values(by=['source_order', 'source']).drop('source_order', axis=1)
 # recipes_subset = recipes_subset.sort_values(by=['source_order', 'source'])
-
-# recipes_subset[recipes_subset["source_order"] == 1]["url"]
-# recipes_subset[recipes_subset["source_order"] == 2]["url"]
-# recipes_subset[recipes_subset["source_order"] == 88000]["url"]
-
-# recipes_subset2 = recipes_subset.head(100)
-
-# tmp2 = tmp.head(1)
 
 # Iterate over rows, convert each row to a dictionary, and save as JSON
 for index, row in recipes_subset.iterrows():

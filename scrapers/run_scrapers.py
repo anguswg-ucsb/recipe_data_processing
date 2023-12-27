@@ -357,3 +357,81 @@ def clean_scraped_data(df):
 
 ########################################################
 ########################################################
+
+########################################################
+########################################################
+
+import os
+import subprocess
+import random
+import time 
+
+# Base directory for test JSONs
+test_base_dir = "/Users/anguswatters/Desktop/recipes_json/"
+# test_base_dir = "/Users/anguswatters/Desktop/test_jsons/"
+
+# S3 bucket URI to upload raw JSONs to
+s3_uri = "s3://recipes-raw-bucket/"
+
+# # list the files in the directory
+filenames = os.listdir(test_base_dir)
+
+file_paths = [os.path.join(test_base_dir, file) for file in filenames if os.path.isfile(os.path.join(test_base_dir, file)) and file != ".DS_Store"]
+len(file_paths)
+
+len(file_paths)
+
+final_list = []
+
+for file in file_paths:
+    if file not in to_drop:
+        final_list.append(file)
+len(final_list)
+
+# file_paths = [file_paths[2], file_paths[5]]
+random.shuffle(file_paths)
+
+# file = file_paths[-1]
+# file_paths = file_paths[:len(file_paths)-1]
+
+for file in file_paths:
+    print(f"file: {file}")
+
+    sleep_time = random.randint(2, 5)
+
+    print(f"Sleeping for {sleep_time} seconds...")
+    time.sleep(sleep_time)
+
+    subprocess.run(f"aws s3 cp {file} {s3_uri}", shell=True)
+    # subprocess.process.call(f"aws s3 cp {test_base_dir}{file} s3://recipe-scrapers-jsons/", shell=True)
+
+    print(f"===" * 10)
+
+########################################################
+########################################################
+import httpx
+
+def get_headers_list(api_key):
+        response = httpx.get(f"https://headers.scrapeops.io/v1/browser-headers?api_key={api_key}")
+
+        json_response = response.json()
+
+        return json_response.get('result', [])
+    
+def get_random_header(header_list):
+    random_index = random.randint(0, len(header_list) - 1)
+    return header_list[random_index]
+
+
+# get a list of viable headers from scrapeops.io header API
+header_list = get_headers_list(api_key = SCRAPE_OPS_API_KEY)
+header_list
+
+# get a random header from the list of headers from scrapeops.io header API
+header = get_random_header(header_list)
+test_url = "https://www.seriouseats.com/recipes/2019/10/cajun-gumbo-with-chicken-and-andouille-recipe.html"
+
+response = httpx.get(url=test_url, headers=header, follow_redirects=True)
+response.status_code
+
+response.content
