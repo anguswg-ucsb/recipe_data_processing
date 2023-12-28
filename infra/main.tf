@@ -380,17 +380,21 @@ resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
   # timeout in seconds
   timeout         = 450
 
-  # Only allow for a maximum of 5 Lambdas to be run concurrently
-  reserved_concurrent_executions = 5
+  # Only allow for a maximum of 8 Lambdas to be run concurrently
+  reserved_concurrent_executions = 8
   
   # Attach the Lambda function to the CloudWatch Logs group
   environment {
     variables = {
-        CW_LOG_GROUP       = aws_cloudwatch_log_group.raw_recipes_lambda_log_group.name,
-        S3_BUCKET          = aws_s3_bucket.raw_s3_bucket.bucket,
-        OUTPUT_S3_BUCKET   = aws_s3_bucket.stage_s3_bucket.bucket,
-        SCRAPE_OPS_API_KEY = var.scrape_ops_api_key,
-        DYNAMODB_TABLE     = aws_dynamodb_table.recipe_scraper_table.name,
+        CW_LOG_GROUP         = aws_cloudwatch_log_group.raw_recipes_lambda_log_group.name,
+        S3_BUCKET            = aws_s3_bucket.raw_s3_bucket.bucket,
+        OUTPUT_S3_BUCKET     = aws_s3_bucket.stage_s3_bucket.bucket,
+        SCRAPE_OPS_API_KEY   = var.scrape_ops_api_key,
+        DYNAMODB_TABLE       = aws_dynamodb_table.recipe_scraper_table.name,
+        BRIGHT_DATA_USERNAME = var.bright_data_username,
+        BRIGHT_DATA_PASSWORD = var.bright_data_password,
+        BRIGHT_DATA_HOST     = var.bright_data_host,
+        BRIGHT_DATA_PORT     = var.bright_data_port,
     }
   }
 

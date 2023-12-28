@@ -65,6 +65,12 @@ recipes_subset['source_order'] = recipes_subset.groupby('source').cumcount()
 recipes_subset = recipes_subset.sort_values(by=['source_order', 'source']).drop('source_order', axis=1)
 # recipes_subset = recipes_subset.sort_values(by=['source_order', 'source'])
 
+# # Create a list of base_url values that meet the condition in url_counts
+# selected_base_urls = url_counts[url_counts["count"] == 1]["base_url"].tolist()
+# tmp[tmp["base_url"].isin(selected_base_urls)].url.values[0]
+
+recipes_subset[recipes_subset['source'] == "Recipes1M"]
+
 # Iterate over rows, convert each row to a dictionary, and save as JSON
 for index, row in recipes_subset.iterrows():
     # print(f"Processing row {index}...")
@@ -91,7 +97,41 @@ for index, row in recipes_subset.iterrows():
         json.dump(row_dict, json_file)
 
 # -----------------------------------------------
+        
+import os
+import shutil
 
+os.path.exists(source_dir)
+
+def create_subdirectories(source_dir, dest_dir, files_per_directory):
+    # Ensure the destination directory exists
+    os.makedirs(dest_dir, exist_ok=True)
+
+    # Get a list of all JSON files in the source directory
+    json_files = [f for f in os.listdir(source_dir) if f.endswith('.json')]
+
+    # Create subdirectories and move files
+    # for i in range(0, len(json_files), files_per_directory):
+    for i in range(0, 40, files_per_directory):
+
+        print(f"i: {i}")
+        print(f"i + files_per_directory: {i + files_per_directory}")
+
+        subdirectory_name = f'subdirectory_{i // files_per_directory + 1}'
+        subdirectory_path = os.path.join(dest_dir, subdirectory_name)
+        os.makedirs(subdirectory_path, exist_ok=True)
+
+        # Move files to the subdirectory
+        for file_name in json_files[i:i + files_per_directory]:
+            source_path = os.path.join(source_dir, file_name)
+            dest_path = os.path.join(subdirectory_path, file_name)
+            shutil.move(source_path, dest_path)
+
+source_dir = '/Users/anguswatters/Desktop/recipes_json'
+dest_dir = '/Users/anguswatters/Desktop/recipes_json_chunks'
+
+# Specify the number of files per subdirectory
+files_per_directory = 9
 # recipes_subset.source.value_counts()
 # recipes_subset[recipes_subset["source"] == "Recipes1M"].url.value_counts()
 

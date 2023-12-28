@@ -31,10 +31,18 @@ from recipe_scrapers import scrape_me, scrape_html
 # from .config import Config
 
 # environemnt variables
-S3_BUCKET = os.environ.get('S3_BUCKET')
-SCRAPE_OPS_API_KEY = os.environ.get('SCRAPE_OPS_API_KEY')
+S3_BUCKET        = os.environ.get('S3_BUCKET')
 OUTPUT_S3_BUCKET = os.environ.get('OUTPUT_S3_BUCKET')
-DYNAMODB_TABLE = os.environ.get('DYNAMODB_TABLE')
+DYNAMODB_TABLE   = os.environ.get('DYNAMODB_TABLE')
+
+# Bright Data credentials
+BRIGHT_DATA_USERNAME = os.environ.get('BRIGHT_DATA_USERNAME')
+BRIGHT_DATA_PASSWORD = os.environ.get('BRIGHT_DATA_PASSWORD')
+BRIGHT_DATA_HOST     = os.environ.get('BRIGHT_DATA_HOST')
+BRIGHT_DATA_PORT     = os.environ.get('BRIGHT_DATA_PORT')
+
+# Scrape Ops API Key
+SCRAPE_OPS_API_KEY = os.environ.get('SCRAPE_OPS_API_KEY')
 
 # S3 client
 s3 = boto3.client('s3')
@@ -42,52 +50,100 @@ s3 = boto3.client('s3')
 # DynamoDB client
 dynamodb = boto3.client('dynamodb')
 
-def make_dynamodb_item(origin_json):
+# def make_dynamodb_item(origin_json, status_code = -1):
+
+#     # set any None values to empty strings
+#     for key, value in origin_json.items():
+#         if value is None:
+#             origin_json[key] = ""
+
+  
+#     # get the current time 
+#     current_time = datetime.now()
+
+#     # convert the current datetime object to epoch time integer
+#     epoch_time = int(current_time.timestamp())
+
+#     # format each item as a dictionary with the correct data type
+#     ddb_item = {
+#         "uid": {"S": origin_json["uid"]},
+#         "id": {"S": origin_json["uid"]},
+#         "dish": {"S": origin_json["dish"]},
+#         "ingredients": {"S": origin_json["ingredients"]},
+#         "quantities": {"S": origin_json["quantities"]},
+#         "directions": {"S": origin_json["directions"]},
+#         "description": {"S": origin_json["description"]},
+#         "prep_time": {"S": str(origin_json["prep_time"])},
+#         "cook_time": {"S": str(origin_json["cook_time"])},
+#         "total_time": {"S": str(origin_json["total_time"])},
+#         "yields": {"S": str(origin_json["yields"])},
+#         "category": {"S": origin_json["category"]},
+#         "cuisine": {"S": origin_json["cuisine"]},
+#         "ratings": {"S": str(origin_json["ratings"])},
+#         "url": {"S": origin_json["url"]},
+#         "img": {"S": origin_json["img"]},
+#         "source": {"S": origin_json["source"]},
+#         'status_code': {'N': str(status_code)},
+#         "timestamp": {'N': str(epoch_time)}
+#     }
+
+#     return ddb_item
+
+def make_dynamodb_item(origin_json, status_code=-1):
+
 
     # set any None values to empty strings
     for key, value in origin_json.items():
         if value is None:
             origin_json[key] = ""
 
-  
-    # get the current time 
+    # get the current time
     current_time = datetime.now()
 
     # convert the current datetime object to epoch time integer
     epoch_time = int(current_time.timestamp())
 
-    # format each item as a dictionary with the correct data type
-    ddb_item = {
-        "uid": {"S": origin_json["uid"]},
-        "id": {"S": origin_json["uid"]},
-        "dish": {"S": origin_json["dish"]},
-        "ingredients": {"S": origin_json["ingredients"]},
-        "quantities": {"S": origin_json["quantities"]},
-        "directions": {"S": origin_json["directions"]},
-        "description": {"S": origin_json["description"]},
-        "prep_time": {"S": str(origin_json["prep_time"])},
-        "cook_time": {"S": str(origin_json["cook_time"])},
-        "total_time": {"S": str(origin_json["total_time"])},
-        "yields": {"S": str(origin_json["yields"])},
-        "category": {"S": origin_json["category"]},
-        "cuisine": {"S": origin_json["cuisine"]},
-        "ratings": {"S": str(origin_json["ratings"])},
-        "url": {"S": origin_json["url"]},
-        "img": {"S": origin_json["img"]},
-        "source": {"S": origin_json["source"]},
-        # 'status_code': {'N': str(status_code)},
-        "timestamp": {'N': str(epoch_time)}
-    }
+    # initialize an empty dictionary for ddb_item
+    ddb_item = {"uid": {"S": origin_json["uid"]}}
+
+    # iterate through keys in origin_json and add them to ddb_item
+    for key, value in origin_json.items():
+        ddb_item[key] = {"S": str(value)}
+    
+    # add additional keys like status_code and timestamp
+    ddb_item['status_code'] = {'N': str(status_code)}
+    ddb_item["timestamp"] = {'N': str(epoch_time)}
+
+    # # format each item as a dictionary with the correct data type
+    # ddb_item = {
+    #     "uid": {"S": origin_json["uid"]},
+    #     "id": {"S": origin_json["uid"]},
+    #     "dish": {"S": origin_json["dish"]},
+    #     "ingredients": {"S": origin_json["ingredients"]},
+    #     "quantities": {"S": origin_json["quantities"]},
+    #     "directions": {"S": origin_json["directions"]},
+    #     "description": {"S": origin_json["description"]},
+    #     "prep_time": {"S": str(origin_json["prep_time"])},
+    #     "cook_time": {"S": str(origin_json["cook_time"])},
+    #     "total_time": {"S": str(origin_json["total_time"])},
+    #     "yields": {"S": str(origin_json["yields"])},
+    #     "category": {"S": origin_json["category"]},
+    #     "cuisine": {"S": origin_json["cuisine"]},
+    #     "ratings": {"S": str(origin_json["ratings"])},
+    #     "url": {"S": origin_json["url"]},
+    #     "img": {"S": origin_json["img"]},
+    #     "source": {"S": origin_json["source"]},
+    #     'status_code': {'N': str(status_code)},
+    #     "timestamp": {'N': str(epoch_time)}
+    # }
 
     return ddb_item
 
-
-
 # Function to log failed request to DynamoDB
-def log_failed_request(url, origin_json):
+def log_failed_request(url, origin_json, status_code = -1):
 
     # Create a DynamoDB item
-    ddb_item = make_dynamodb_item(origin_json)
+    ddb_item = make_dynamodb_item(origin_json, status_code)
 
     try:
         dynamodb.put_item(
@@ -98,10 +154,10 @@ def log_failed_request(url, origin_json):
         print(f"Error logging failed request to DynamoDB: {e}")
 
 # Function to log request with maximum retries reached to DynamoDB
-def log_max_retries_exceeded(url, origin_json):
+def log_max_retries_exceeded(url, origin_json, status_code = -1):
     
     # Create a DynamoDB item
-    ddb_item = make_dynamodb_item(origin_json)
+    ddb_item = make_dynamodb_item(origin_json, status_code)
 
     try:
         dynamodb.put_item(
@@ -111,15 +167,47 @@ def log_max_retries_exceeded(url, origin_json):
     except Exception as e:
         print(f"Error logging max retries exceeded to DynamoDB: {e}")
 
+# Function to get a proxy from Bright Data
+def get_proxy():
+
+    session_id = random.random()
+
+    # format your proxy
+    proxy_url = f'https://{BRIGHT_DATA_USERNAME}-session-{session_id}:{BRIGHT_DATA_PASSWORD}@{BRIGHT_DATA_HOST}:{BRIGHT_DATA_PORT}'
+
+    # define your proxies in dictionary
+    proxies = {'http://': proxy_url, 'https://': proxy_url}   
+    
+    # # Send a GET request to the website
+    # url = "http://checkip.amazonaws.com/"
+    # response = requests.get(url, proxies=proxies)
+    # response.content
+
+    return proxies
 
 # Function to make a request with retries and delay
-def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sleep=5, max_sleep=15):
+def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sleep=5, max_sleep=15, status_code = -1):
+    
+    # url           = s3_json["url"]
+    # header        = header
+    # origin_json   = s3_json
+    # max_retries   = 3
+    # initial_sleep = 7
+    # max_sleep     = 15
+    # status_code   = -1
+    # proxy        = get_proxy()
 
     for attempt in range(max_retries):
+        
+        # get a random proxy from Bright Data
+        proxy        = get_proxy()
+
         try:
             # Make a request to the URL
             print(f"Getting recipe data from: {url}")
-            response = httpx.get(url=url, headers=header, follow_redirects=True)
+            response = httpx.get(url=url, headers=header, follow_redirects=True, proxies=proxy)
+            # response = httpx.get(url=url, headers=header, follow_redirects=True)
+
             response.raise_for_status()  # Raise HTTPError for bad responses
 
             # Get the HTML content from the response
@@ -135,9 +223,15 @@ def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sle
             # print(f"HTTP error with url: {url}, status code: {response.status_code}")
             print(f"HTTP Exception for {exc.request.url} - {exc}")
 
-            # Log the failed request to DynamoDB
-            log_failed_request(url, origin_json)
-            # log_failed_request(url, exc.request.status_code, origin_json)
+            # get status code
+            status_code = exc.response.status_code if hasattr(exc, 'response') else -1
+            # status_code = exc.response.status_code
+
+            print(f"HTTP request failed with status code: {status_code}")
+
+            # # Log the failed request to DynamoDB
+            # log_failed_request(url, origin_json, status_code)
+            # # log_failed_request(url, exc.request.status_code, origin_json)
 
         except Exception as esc:
             print(f"Error with url: {url}, {exc}")
@@ -150,8 +244,15 @@ def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sle
 
     print(f"Max retries reached for url: {url}")
 
+    # # Log the request with maximum retries reached to DynamoDB
+    # log_failed_request(url, origin_json, status_code) if status_code != -1 else log_max_retries_exceeded(url, origin_json, status_code)
+
+    # Log the request with status code if status code is NOT the default value and put the log into DynamoDB table
+    if status_code != -1:
+        log_failed_request(url, origin_json, status_code)
+
     # Log the request with maximum retries reached to DynamoDB
-    log_max_retries_exceeded(url, origin_json)
+    log_max_retries_exceeded(url, origin_json, status_code)
 
     return None
 
@@ -166,7 +267,9 @@ def s3_recipe_scraper(event, context):
         return json_response.get('result', [])
     
     def get_random_header(header_list):
+
         random_index = random.randint(0, len(header_list) - 1)
+
         return header_list[random_index]
 
     S3_BUCKET = event['Records'][0]['s3']['bucket']['name']
@@ -224,7 +327,8 @@ def s3_recipe_scraper(event, context):
         origin_json   = s3_json,
         max_retries   = 3, 
         initial_sleep = 7, 
-        max_sleep     = 15
+        max_sleep     = 15,
+        status_code   = -1
         )
 
     # if None is returned from the request, return False

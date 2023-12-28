@@ -10,6 +10,15 @@ class Config:
     # OpenAPI API Key
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+    # URI of S3 bucket to put raw data into
+    RAW_S3_URI = os.getenv("RAW_S3_URI")
+
+    # Bright Data credentials
+    BRIGHT_DATA_HOST = os.getenv("BRIGHT_DATA_HOST")
+    BRIGHT_DATA_PORT = os.getenv("BRIGHT_DATA_PORT")
+    BRIGHT_DATA_USERNAME = os.getenv("BRIGHT_DATA_USERNAME")
+    BRIGHT_DATA_PASSWORD = os.getenv("BRIGHT_DATA_PASSWORD")
+
     # NordVPN credentials
     NORDVPN_USERNAME = os.getenv("NORDVPN_USERNAME")
     NORDVPN_PASSWORD = os.getenv("NORDVPN_PASSWORD")
