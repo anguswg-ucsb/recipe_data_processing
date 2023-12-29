@@ -315,8 +315,21 @@ def process_dataset_recipeNLG(df):
             'category', 'cuisine','ratings', 'url', 
             # 'base_url', 
             'img', 'source']]
-    # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_parquet('data/dish_recipes.parquet')
-    # recipes[['dish_id', 'dish', 'ingredients', 'quantities', 'directions']].to_csv('data/dish_recipes.csv', index=False)
+    
+    # Section to remove known bad links/data
+
+    # remove recipes from www.cookbooks.com 
+    df = df[df["source"] != "www.cookbooks.com"]
+
+    # remove recipes from www.epicurious.com/recipes/member
+    df = df[-df['url'].str.contains('www.epicurious.com/recipes/member', case=False)]
+    df = df[-df['url'].str.contains('recipes-plus', case=False)]
+
+    # Create a new column representing the order within each group
+    df['source_order'] = df.groupby('source').cumcount()
+
+    # sort the DataFrame so that each data source is NOT grouped together and instead is mixed in with the other data sources
+    df = df.sort_values(by=['source_order', 'source']).drop('source_order', axis=1)
 
     return df
 

@@ -19,7 +19,7 @@ provider "aws" {
 # paths to Lambda zip files and tag variables
 
 locals {
-    s3_recipe_scraper_lambda_zip = "../deploy/s3_recipe_scraper.zip"
+    recipe_scraper_lambda_zip = "../deploy/recipe_scraper_lambda.zip"
     name_tag = "recipe-scraper"
 }
 
@@ -113,17 +113,17 @@ resource "aws_s3_bucket_policy" "raw_bucket_policy" {
 }
 
 
-# S3 event notification for raw data bucket to trigger lambda function
-resource "aws_s3_bucket_notification" "raw_s3_bucket_notification" {
-  bucket = aws_s3_bucket.raw_s3_bucket.id
+# # S3 event notification for raw data bucket to trigger lambda function
+# resource "aws_s3_bucket_notification" "raw_s3_bucket_notification" {
+#   bucket = aws_s3_bucket.raw_s3_bucket.id
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.s3_recipe_scraper_lambda_function.arn
-    events              = ["s3:ObjectCreated:*"]
-    # filter_prefix       = "raw/"
-    filter_suffix       = ".json"
-  }
-}
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.recipe_scraper_lambda_function.arn
+#     events              = ["s3:ObjectCreated:*"]
+#     # filter_prefix       = "raw/"
+#     filter_suffix       = ".json"
+#   }
+# }
 
 #####################
 # S3 bucket (STAGE) #
@@ -225,9 +225,9 @@ resource "aws_s3_bucket" "lambda_s3_bucket" {
 # s3 object for lambda code process_staging function
 resource "aws_s3_object" "recipe_scraper_lambda_code_object" {
   bucket = aws_s3_bucket.lambda_s3_bucket.bucket
-  key    = var.s3_recipe_scraper_lambda_zip_filename
-  source = local.s3_recipe_scraper_lambda_zip
-  etag   = filemd5(local.s3_recipe_scraper_lambda_zip)
+  key    = var.recipe_scraper_lambda_zip_filename
+  source = local.recipe_scraper_lambda_zip
+  etag   = filemd5(local.recipe_scraper_lambda_zip)
 }
 
 ##################################
@@ -294,6 +294,21 @@ data "aws_iam_policy_document" "lambda_s3_policy_doc" {
     ]
   }
 
+    statement {
+    sid = "SQSReadDeletePermissions"
+    
+    effect = "Allow"
+
+    actions = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+    ]
+
+    resources = [
+      aws_sqs_queue.sqs_s3_event_queue.arn
+      ]
+  }
 
 }
 
@@ -332,7 +347,7 @@ resource "aws_cloudwatch_log_group" "raw_recipes_lambda_log_group" {
 ###############################################################
 
 resource "aws_iam_policy" "logging_policy" {
-  name_prefix   = "s3-recipe-scraper-logging-policy"
+  name_prefix   = "recipe-scraper-lambda-logging-policy"
   policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -362,23 +377,23 @@ resource "aws_iam_role_policy_attachment" "lambda_logs_policy_attachment" {
 # lambda function triggered when a JSON file is uploaded to the raw S3 bucket (ObjectCreated)
 # Function loads the JSON data and gets more data from the URL in the JSON and
 # adds to new found data to the original JSON, then uploads this to the staging bucket
-resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
+resource "aws_lambda_function" "recipe_scraper_lambda_function" {
   s3_bucket        = aws_s3_bucket.lambda_s3_bucket.bucket
   s3_key           = var.raw_lambda_function_zip_file
   s3_object_version = aws_s3_object.recipe_scraper_lambda_code_object.version_id
   source_code_hash = var.raw_lambda_function_zip_file
-  # source_code_hash = filebase64sha256(local.s3_recipe_scraper_lambda_zip)
+  # source_code_hash = filebase64sha256(local.recipe_scraper_lambda_zip)
   # source_code_hash = aws_s3_object.recipe_scraper_lambda_code_object.etag
 
   function_name    = var.raw_lambda_function_name
-  handler          = "s3_recipe_scraper.s3_recipe_scraper.s3_recipe_scraper"
+  handler          = "recipe_scraper_lambda.recipe_scraper_lambda.recipe_scraper_lambda"
   role             = aws_iam_role.lambda_role.arn
   runtime          = "python3.11"
   architectures    = ["x86_64"]
   # architectures    = ["arm64"]
 
   # timeout in seconds
-  timeout         = 450
+  timeout         = 500
 
   # Only allow for a maximum of 8 Lambdas to be run concurrently
   reserved_concurrent_executions = 8
@@ -417,7 +432,7 @@ resource "aws_lambda_function" "s3_recipe_scraper_lambda_function" {
 resource "aws_lambda_permission" "allow_s3_invoke" {
   statement_id  = "AllowS3Invoke"
   action        = "lambda:InvokeFunction"
-  function_name = "${aws_lambda_function.s3_recipe_scraper_lambda_function.arn}"
+  function_name = "${aws_lambda_function.recipe_scraper_lambda_function.arn}"
   principal = "s3.amazonaws.com"
   source_arn = "${aws_s3_bucket.raw_s3_bucket.arn}"
 }
@@ -486,4 +501,159 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
+}
+
+# ########################################
+# # SQS Queue for S3 event notifications #
+# ########################################
+
+# SQS queue for S3 event notifications
+resource "aws_sqs_queue" "sqs_s3_event_queue" {
+  name                       = var.sqs_queue_name
+  delay_seconds              = 10
+  max_message_size           = 2048
+  message_retention_seconds  = 518400 # 6 day retention period
+  receive_wait_time_seconds  = 10
+  visibility_timeout_seconds = 3200   # 6 times the Lambda function timeout (600 seconds) to allow for retries (source: https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+  # policy = data.aws_iam_policy_document.sqs_queue_policy_doc.json
+
+}
+
+# SQS queue policy to allow lambda to write to queue
+resource "aws_sqs_queue_policy" "sqs_s3_event_policy" {
+  queue_url = aws_sqs_queue.sqs_s3_event_queue.id
+  policy    = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = "*",
+        Action = "sqs:SendMessage",
+        Resource = aws_sqs_queue.sqs_s3_event_queue.arn,
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_s3_bucket.raw_s3_bucket.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+# # SQS queue policy document
+# data "aws_iam_policy_document" "sqs_queue_policy_doc" {
+#   statement {
+#     effect = "Allow"
+
+#     principals {
+#       type        = "*"
+#       identifiers = ["*"]
+#     }
+
+#     actions   = ["sqs:SendMessage"]
+#     resources = [aws_sqs_queue.sqs_s3_event_queue.arn]
+#     # resources = ["arn:aws:sqs:*:*:s3-event-notification-queue"]
+
+#     condition {
+#       test     = "ArnEquals"
+#       variable = "aws:SourceArn"
+#       values   = [aws_s3_bucket.raw_s3_bucket.arn]
+#     }
+#   }
+# }
+
+# Create S3 event notification to send messages to SQS queue when a JSON file is uploaded to the raw S3 bucket
+resource "aws_s3_bucket_notification" "raw_s3_bucket_notification" {
+  bucket = aws_s3_bucket.raw_s3_bucket.id
+
+  queue {
+    queue_arn     = aws_sqs_queue.sqs_s3_event_queue.arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_suffix = ".json"
+  }
+}
+
+# # S3 event notification for raw data bucket to trigger lambda function
+# resource "aws_s3_bucket_notification" "raw_s3_bucket_notification" {
+#   bucket = aws_s3_bucket.raw_s3_bucket.id
+
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.recipe_scraper_lambda_function.arn
+#     events              = ["s3:ObjectCreated:*"]
+#     # filter_prefix       = "raw/"
+#     filter_suffix       = ".json"
+#   }
+# }
+
+###################################################
+# Lambda (sqs_consumer) IAM Policy for S3/SQS queue
+###################################################
+
+data "aws_iam_policy_document" "sqs_consumer_lambda_policy_doc" {
+
+  statement {
+    sid = "SQSReadDeletePermissions"
+    
+    effect = "Allow"
+
+    actions = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+    ]
+
+    resources = [
+      aws_sqs_queue.sqs_s3_event_queue.arn
+      ]
+  }
+}
+
+# Make an IAM policy from the IAM policy document for S3/SQS permissions for sqs_consumer lambda
+resource "aws_iam_policy" "sqs_consumer_lambda_policy" {
+  name        = "recipe-sqs-consumer-lambda-policy"
+  description = "Recipe scraper policy for sqs consumer Lambda to interact with S3 and SQS queue"
+  policy      = data.aws_iam_policy_document.sqs_consumer_lambda_policy_doc.json
+  tags = {
+    name              = local.name_tag
+    resource_category = "iam"
+  }
+}
+
+# Attach the lambda to SQS IAM policy to the lambda role
+resource "aws_iam_role_policy_attachment" "sqs_consumer_lambda_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.sqs_consumer_lambda_policy.arn
+  # policy_arn = data.aws_iam_policy_document.sqs_consumer_lambda_policy.json
+}
+
+
+# Attach necessary policies to the IAM role
+resource "aws_iam_role_policy_attachment" "sqs_consumer_lambda_basic_exec_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+################################################
+# Lambda (sqs_consumer) SQS Event Source Mapping
+################################################
+
+# Lambda SQS Event Source Mapping
+resource "aws_lambda_event_source_mapping" "sqs_consumer_lambda_event_source_mapping" {
+  event_source_arn = aws_sqs_queue.sqs_s3_event_queue.arn
+  function_name    = aws_lambda_function.recipe_scraper_lambda_function.function_name
+  batch_size       = 2
+  function_response_types = ["ReportBatchItemFailures"]
+  depends_on = [
+    aws_lambda_function.recipe_scraper_lambda_function,
+    aws_sqs_queue.sqs_s3_event_queue,
+  ]
+}
+
+# Allow S3 to invoke the Lambda function
+resource "aws_lambda_permission" "allow_sqs_invoke" {
+  statement_id  = "AllowSQSInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = "${aws_lambda_function.recipe_scraper_lambda_function.arn}"
+  principal = "sqs.amazonaws.com"
+  source_arn = "${aws_sqs_queue.sqs_s3_event_queue.arn}"
 }
