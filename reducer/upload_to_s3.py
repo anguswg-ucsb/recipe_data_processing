@@ -138,12 +138,14 @@ chunked_subdirs = os.listdir(chunked_dir)
 
 # list of subdirectories to recursively upload to S3 bucket
 subdir_paths = [os.path.join(chunked_dir, subdir) for subdir in chunked_subdirs if os.path.isdir(os.path.join(chunked_dir, subdir)) and subdir != ".DS_Store"]
-
+subdir_paths[999:1000]
+subdir_paths[1005:1006]
+len(subdir_paths)
 
 # for subdir in subdir_paths[0:1000]:
-for i, subdir in enumerate(subdir_paths[0:1000]):
+for i, subdir in enumerate(subdir_paths[1005:100000]):
     print(f"i / len(subdir_paths): {i} / {len(subdir_paths)}")
-    sleep_time = random.randint(2, 3)
+    sleep_time = random.randint(1, 2)
     print(f"Sleeping for {sleep_time} seconds...")
     time.sleep(sleep_time)
 

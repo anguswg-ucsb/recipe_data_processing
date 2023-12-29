@@ -115,12 +115,3 @@ def create_subdirectories(source_dir, dest_dir, files_per_directory):
 
 source_dir = '/Users/anguswatters/Desktop/recipes_json'
 dest_dir = '/Users/anguswatters/Desktop/recipes_json_chunks'
-
-# # Specify the number of files per subdirectory
-# files_per_directory = 9
-# recipes_subset.source.value_counts()
-# recipes_subset[recipes_subset["source"] == "Recipes1M"].url.value_counts()
-
-# from recipe_scrapers import scrape_me
-# scrap = scrape_me("www.tastykitchen.com/recipes/sidedishes/cranberry-pear-rosemary-chutney/")
-# scrap.instructions()
