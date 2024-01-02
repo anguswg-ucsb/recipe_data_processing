@@ -28,7 +28,7 @@ from recipe_scrapers import scrape_me, scrape_html
 
 # # import the environment variables from the config.py file
 # # import lambdas.stage_s3_to_prod_s3.config
-# from .config import Config
+# from config import Config
 
 # environemnt variables
 S3_BUCKET        = os.environ.get('S3_BUCKET')
@@ -168,7 +168,7 @@ def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sle
             # Make a request to the URL
             print(f"Getting recipe data from: {url}")
             response = httpx.get(url=url, headers=header, follow_redirects=True, proxies=proxy)
-            # response = httpx.get(url=url, headers=header, follow_redirects=True)
+            # response = httpx.get(url=url, follow_redirects=True)
 
             response.raise_for_status()  # Raise HTTPError for bad responses
 
@@ -261,8 +261,23 @@ def process_message(message):
     # get the object from S3
     s3_obj = s3.get_object(Bucket=S3_BUCKET, Key=S3_FILE_NAME)
 
+    # json_path = "/Users/anguswatters/Desktop/recipes_json_chunks/subdirectory_3/906928_www_allrecipes_com.json"
+
+    # # Open the JSON file for reading
+    # with open(json_path, 'r') as file:
+    #     # Load the JSON data from the file
+    #     s3_json = json.load(file)
+
+    # # Now, 'data' contains a Python dictionary with the content of the JSON file
+    # print(s3_json)
+    # keys_to_keep = ["uid", "url"]
+
+    # # # Create a new dictionary with only the keys we want to keep
+    # s3_json = {key: s3_json[key] for key in keys_to_keep}
+
     # read the JSON file into a dictionary
     s3_json = json.load(s3_obj["Body"])
+    
     # s3_json = response_obj.get('Body').read().decode('utf-8')
 
     # s3_json = row_dict

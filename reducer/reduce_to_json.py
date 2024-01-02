@@ -112,6 +112,3 @@ def create_subdirectories(source_dir, dest_dir, files_per_directory):
             shutil.move(source_path, dest_path)
             print(f"--" * 5)
         print(f"=========" * 4)
-
-source_dir = '/Users/anguswatters/Desktop/recipes_json'
-dest_dir = '/Users/anguswatters/Desktop/recipes_json_chunks'

@@ -182,6 +182,15 @@ tfplan
 
 # Except for main.tf
 !main.tf
+!s3.tf
+!sqs.tf
+!dynamodb.tf
+!s3_events.tf
+!sqs.tf
+!iam.tf
+!lambda.tf
+!ecr.tf
+!cloudwatch.tf
 
 variables.tf
 
@@ -196,3 +205,12 @@ infra/.terraform.lock.hcl
 infra/.terraform/
 infra/tfplan
 infra/variables.tf
+
+lambda_containers/model/
+lambda_containers/model/*
+lambda_containers/model/.DS_Store
+lambda_containers/model/**/.DS_Store
+
+
+deploy/
+deploy/*
