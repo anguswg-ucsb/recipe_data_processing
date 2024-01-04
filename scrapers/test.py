@@ -3,6 +3,8 @@ import random
 import requests
 import re
 from bs4 import BeautifulSoup
+from scrapers.averiecooks.averiecooks_utils import *
+# from scrapers.runners.runners_utils import *
 
 
 
@@ -41,3 +43,16 @@ filtered_urls = [url for url in links if pattern.match(url)]
 # return filtered_urls
 
 soup.find("a")
+
+
+
+
+
+
+
+
+
+
+# When running build_averiecooks_urls, you should see the links printed for each base URL.
+averiecooks_urls = build_averiecooks_urls(random_sleeps=True, start_page=2, end_page=3)
+print(averiecooks_urls)
