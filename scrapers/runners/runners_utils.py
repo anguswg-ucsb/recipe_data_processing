@@ -166,3 +166,31 @@ def clean_scraped_data(df):
             'category', 'cuisine','ratings', 'url', 'base_url', 'img', 'source']]
     
     return df
+
+
+
+# from io import StringIO
+
+# import boto3
+# import pandas as pd
+
+
+# # Create a DataFrame
+# data = {'uid': [1, 2, 3],
+#         'url': ['https://example1.com', 'https://example2.com', 'https://example3.com']}
+
+# df = pd.DataFrame(data)
+
+# # Save the DataFrame to a CSV file
+# file_path = '/Users/anguswatters/Desktop/test_split_df.csv'
+# df.to_csv(file_path, index=False)
+
+# print(f"DataFrame saved to: {file_path}")
+
+# json_buffer = StringIO()
+            
+# df2 = pd.read_csv(file_path)
+
+# df2.to_json(json_buffer, orient='index')
+
+# json.loads(json_buffer.getvalue())
