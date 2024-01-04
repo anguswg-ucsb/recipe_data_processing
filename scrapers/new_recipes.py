@@ -22,7 +22,8 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
     # Base URLs with a list of recipes on the page
     base_urls = [
         "https://www.allrecipes.com/recipes/22908/everyday-cooking/special-collections/new/", 
-        "https://food52.com/recipes/newest"
+        "https://food52.com/recipes/newest", 
+        "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes"
     ]
 
     if random_sleeps:
@@ -34,6 +35,7 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
     # Define the patterns using regular expressions
     allrecipes_pattern = re.compile(r'https://www\.allrecipes\.com/recipe/\d+/\w+(?:-\w+)+/')
     food52_pattern = re.compile(r'/recipes/([^/]+)')
+    nytimes_pattern = re.compile(r'/recipes/\d+-[a-z-]+')
 
 
     for base_url in base_urls:
@@ -49,6 +51,9 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
         elif "food52" in base_url:
             # Filter out non-recipe links for Food52 and concatenate the string
             recipe_links = [f"https://www.food52.com{url}" for url in links if food52_pattern.match(url)]
+        elif "nytimes" in base_url:
+            # Filter out non-recipe links for Allrecipes
+            recipe_links = [f"https://cooking.nytimes.com{url}" for url in links if nytimes_pattern.match(url)]
 
         # Add the filtered links to the result
         filtered_urls.extend(recipe_links)
