@@ -23,7 +23,8 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
     base_urls = [
         "https://www.allrecipes.com/recipes/22908/everyday-cooking/special-collections/new/", 
         "https://food52.com/recipes/newest", 
-        "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes"
+        "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes", 
+        "https://www.hellofresh.com/recipes/most-recent-recipes"
     ]
 
     if random_sleeps:
@@ -36,6 +37,7 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
     allrecipes_pattern = re.compile(r'https://www\.allrecipes\.com/recipe/\d+/\w+(?:-\w+)+/')
     food52_pattern = re.compile(r'/recipes/([^/]+)')
     nytimes_pattern = re.compile(r'/recipes/\d+-[a-z-]+')
+    hellofresh_pattern = re.compile(r'https://www\.hellofresh\.com/recipes/[\d\w-]+-\w{24}')
 
 
     for base_url in base_urls:
@@ -54,6 +56,9 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
         elif "nytimes" in base_url:
             # Filter out non-recipe links for Allrecipes
             recipe_links = [f"https://cooking.nytimes.com{url}" for url in links if nytimes_pattern.match(url)]
+        if "hellofresh" in base_url:
+            # Filter out non-recipe links for Allrecipes
+            recipe_links = [url for url in links if hellofresh_pattern.match(url)]
 
         # Add the filtered links to the result
         filtered_urls.extend(recipe_links)
