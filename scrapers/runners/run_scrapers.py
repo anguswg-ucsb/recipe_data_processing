@@ -22,6 +22,7 @@
 # import helper utility functions from each <website>_utils.py in the scrapers folder
 from scrapers.allrecipes.allrecipes_utils import *
 from scrapers.fooddotcom.fooddotcom_utils import *
+from scrapers.averiecooks.averiecooks_utils import *
 from scrapers.runners.runners_utils import *
 
 import ast
@@ -62,14 +63,23 @@ fooddotcom_urls = build_fooddotcom_urls()
 
 # len(fooddotcom_urls)
 
+# List of recipe URLs from food.com to scrape
+averiecooks_urls = build_averiecooks_urls(random_sleeps=True, start_page=2, end_page=50) # TODO: gpes through 180 but images get iffy at some point
+
+# len(averiecooks_urls)
+
 ##########################################################################################################
 # Step 2: 
 # Go through our list of recipe URLs and scrape recipe from the page and store the returned JSON in a list
 ##########################################################################################################
 
-random_urls = allrecipes_urls
+random_urls = []
+
+random_urls.extend(allrecipes_urls)
 
 random_urls.extend(fooddotcom_urls)
+
+random_urls.extend(averiecooks_urls)
 
 # Randomly shuffle URLs to make sure not to scrape from the same website over and over again
 random.shuffle(random_urls)
