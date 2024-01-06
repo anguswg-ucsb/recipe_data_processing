@@ -19,6 +19,8 @@ provider "aws" {
 # paths to Lambda zip files and tag variables
 
 locals {
+    chunk_csv_lambda_zip = "../deploy/chunk_csv_lambda.zip"
+    send_json_lambda_zip = "../deploy/send_json_lambda.zip"
     recipe_scraper_lambda_zip = "../deploy/recipe_scraper_lambda.zip"
     name_tag = "recipe-scraper"
 }

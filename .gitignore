@@ -214,3 +214,4 @@ lambda_containers/model/**/.DS_Store
 
 deploy/
 deploy/*
+scrap.py

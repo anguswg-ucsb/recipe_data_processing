@@ -13,6 +13,8 @@ import json
 import random
 import time
 import uuid
+import re
+import sys 
 # from decimal import Decimal
 
 # library for making HTTPS requests
@@ -31,7 +33,6 @@ from recipe_scrapers import scrape_me, scrape_html
 # from config import Config
 
 # environemnt variables
-S3_BUCKET        = os.environ.get('S3_BUCKET')
 OUTPUT_S3_BUCKET = os.environ.get('OUTPUT_S3_BUCKET')
 DYNAMODB_TABLE   = os.environ.get('DYNAMODB_TABLE')
 
@@ -218,6 +219,16 @@ def make_request_with_retry(url, header, origin_json, max_retries=3, initial_sle
 
     return None
 
+def truncate_filename(filename, max_bytes=1024):
+    # Calculate the maximum allowed length for the filename (including ".json")
+    max_length = max_bytes - len(".json")
+    
+    # Truncate the filename while preserving the ".json" extension
+    truncated_name = filename[:max_length] + ".json"
+    
+    return truncated_name
+
+
 # code to process one of the batch of messages in SQS queue
 def process_message(message):
 
@@ -238,53 +249,26 @@ def process_message(message):
     print(f'---->\n Value of message: {message}')
     print(f"=====================")
 
+    # # Get the SQS message from the event 
+    # message = event['Records'][0]["body"]
+    # message = event["Records"][0]
+    
     # Get the SQS event message ID
-    message_id = message["messageId"]
+    message_id   = message["messageId"]
+
+    # Get the SQS event message body
+    message_body = message["body"]
+
+    # # test message body
+    # output_list = []
+    # message_body = {"uid": "test_uid", "url": "https://www.food.com/recipe/lenten-lentils-oaxacan-style-85328"}
+    # message_body = {"uid": "test_uid", "url": "https://www.allrecipes.com/recipe/143069/super-delicious-zuppa-toscana/"}
+    # message_body2 = {"uid" : "test_uid2", "url" : 'https://www.food.com/recipe/mamma-mia-fresh-italian-lasagne-411585'}
+
+    print(f"- message_id: {message_id}")
+    print(f"- message_body: {message_body}")
     
-    print(f"message_id: {message_id}")
-
-    # Get the S3 event notification JSON object from the message body
-    s3_event = json.loads(message["body"])
-    # s3_event = event["Records"][0]["body"]
-
-    # Extract the S3 bucket and the filename from the S3 event notification JSON object
-    S3_BUCKET    = s3_event['Records'][0]['s3']['bucket']['name']
-    S3_FILE_NAME = s3_event['Records'][0]['s3']['object']['key']
-
-    print(f"=====================")
-    print(f'---->\n Value of s3_event: {s3_event}')
-    print(f"=====================")
-
-    print(f"- S3_BUCKET: {S3_BUCKET}")
-    print(f"- S3_FILE_NAME: {S3_FILE_NAME}")
-    
-    # get the object from S3
-    s3_obj = s3.get_object(Bucket=S3_BUCKET, Key=S3_FILE_NAME)
-
-    # json_path = "/Users/anguswatters/Desktop/recipes_json_chunks/subdirectory_3/906928_www_allrecipes_com.json"
-
-    # # Open the JSON file for reading
-    # with open(json_path, 'r') as file:
-    #     # Load the JSON data from the file
-    #     s3_json = json.load(file)
-
-    # # Now, 'data' contains a Python dictionary with the content of the JSON file
-    # print(s3_json)
-    # keys_to_keep = ["uid", "url"]
-
-    # # # Create a new dictionary with only the keys we want to keep
-    # s3_json = {key: s3_json[key] for key in keys_to_keep}
-
-    # read the JSON file into a dictionary
-    s3_json = json.load(s3_obj["Body"])
-    
-    # s3_json = response_obj.get('Body').read().decode('utf-8')
-
-    # s3_json = row_dict
-    print(f"s3_json: {s3_json}")
-
-    # s3_json['url']
-    print(f"s3_json['url']: {s3_json['url']}")
+    print(f"message_body['url']: {message_body['url']}")
 
     # get a random sleep time between 1 and 5 seconds
     random_sleep_time = random.randint(4, 6)
@@ -313,40 +297,64 @@ def process_message(message):
     
     # get the scraped data from the URL with exponential backoff retries
     scraped_json = make_request_with_retry(
-        url           = s3_json["url"], 
+        url           = message_body["url"], 
         header        = header,
-        origin_json   = s3_json,
-        max_retries   = 3, 
-        initial_sleep = 7, 
+        origin_json   = message_body,
+        max_retries   = 2, 
+        initial_sleep = 5, 
         max_sleep     = 15,
         status_code   = -1
         )
 
     # if None is returned from the request, return False
     if not scraped_json:
-        print(f"Error retrieving scraped data from url: {s3_json['url']}")
+        print(f"Error retrieving scraped data from url: {message_body['url']}")
         return False
 
-    # create a mapping to rename scraped json keys to add back to original json
-    key_mapping = {key : "scraped_" + key for key in scraped_json.keys()}
+    # # create a mapping to rename scraped json keys to add back to original json
+    # key_mapping = {key : "scraped_" + key for key in scraped_json.keys()}
 
-    # Create a new dictionary with the renamed keys
-    updated_scraped_json = {key_mapping.get(old_key, old_key): value for old_key, value in scraped_json.items()}
+    # # Create a new dictionary with the renamed keys
+    # updated_scraped_json = {key_mapping.get(old_key, old_key): value for old_key, value in scraped_json.items()}
 
     # add the scraped data to the original json
-    s3_json.update(updated_scraped_json)
+    message_body.update(scraped_json)
+    # message_body2.update(scraped_json2)
 
+    # message_body.update(updated_scraped_json)
+    # output_list.append(message_body)
+    # output_list.append(message_body2)
+    
     # generate a random UUID to add to the OUTPUT_S3_OBJECT_NAME
     unique_id = f"{uuid.uuid4().hex}"
 
-    # extract the base file name and the extension from the file_name
-    BASE_NAME, extension = os.path.splitext(S3_FILE_NAME)
+    # # extract the base file name and the extension from the file_name
+    # BASE_NAME, extension = os.path.splitext(message_body["url"])
+    # os.path.basename(message_body["url"])
 
-    print(f"BASE_NAME: '{BASE_NAME}'")
-    print(f"extension: '{extension}'")
+    # use URL to generate unique filename
+    url_filename = message_body["url"]
+
+    # remove http:// or https:// from the URL
+    url_filename = re.sub("http://|https://", "", url_filename)
+
+    # regex pattern to match all special characters and whitespaces
+    pattern = re.compile(r'[^a-zA-Z0-9]+')
+
+    # replace special character/whitespaces with underscores
+    url_filename = re.sub(pattern, '_', url_filename)
+
+    # get the midpoint of the filename
+    midpoint = len(url_filename)//2
+
+    # truncate the filename to half its size if the length of the filename is greater than 700 characters
+    # (S3 object key just needs to be under 1024 bytes, this wont ever really be an issue probably)
+    url_filename = url_filename if len(url_filename) < 700 else url_filename[:midpoint]
+
+    print(f"url_filename: '{url_filename}'")
 
     # name of the output json file
-    OUTPUT_S3_OBJECT_NAME = f"stage_{BASE_NAME}_{unique_id}.json"
+    OUTPUT_S3_OBJECT_NAME = f"stage_{url_filename}_{unique_id}.json"
 
     print(f"OUTPUT_S3_OBJECT_NAME: '{OUTPUT_S3_OBJECT_NAME}'")
 
@@ -357,7 +365,7 @@ def process_message(message):
 
     # Save the dictionary as a JSON file
     with open(LAMBDA_JSON_FILEPATH, 'w') as json_file:
-        json.dump(s3_json, json_file)
+        json.dump(message_body, json_file)
 
     print(f"Uploading '{LAMBDA_JSON_FILEPATH}' to:\n - OUTPUT_S3_BUCKET: '{OUTPUT_S3_BUCKET}'\n - OUTPUT_S3_OBJECT_NAME: '{OUTPUT_S3_OBJECT_NAME}'")
 
@@ -395,5 +403,3 @@ def recipe_scraper_lambda(event, context):
     print(f"sqs_batch_response: {sqs_batch_response}")
 
     return sqs_batch_response
-
-    

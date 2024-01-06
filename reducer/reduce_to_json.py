@@ -48,6 +48,20 @@ recipes = pd.concat(dataset_list)
 processed_recipes = process_dataset_recipeNLG(recipes)
 processed_recipes.source.value_counts()
 
+# save URL dataframe 
+url_df = processed_recipes[["uid", "url"]]
+
+# save URL dataframe to csv
+url_path = '/Users/anguswatters/Desktop/recipe_urls/url_dataset_recipeNLG.csv'
+
+# save to csv
+url_df.to_csv(url_path, index=False)
+# save URL dataframe to csv
+url_path = '/Users/anguswatters/Desktop/recipe_urls/url_test_dataset_recipeNLG.csv'
+
+# save to csv
+url_df.head(15).to_csv('/Users/anguswatters/Desktop/recipe_urls/url_test_dataset_recipeNLG.csv', index=False)
+
 # Iterate over rows, convert each row to a dictionary, and save as JSON
 for index, row in processed_recipes.iterrows():
     # print(f"Processing row {index}...")

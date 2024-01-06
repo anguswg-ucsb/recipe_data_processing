@@ -26,9 +26,9 @@ resource "aws_iam_role" "lambda_role" {
   }
 }
 
-############################################################################
-# Lambda Role (mros_lambda_role) Attach AWSLambdaBasicExecutionRole Policy #
-############################################################################
+##########################################################################################
+# Lambda Role (lambda_role) Attach AWSLambdaBasicExecutionRole Policy (AWS managed role) #
+##########################################################################################
 
 # Attach necessary policies to the IAM role
 resource "aws_iam_role_policy_attachment" "lambda_role_attachment" {
@@ -42,9 +42,9 @@ resource "aws_iam_role_policy_attachment" "lambda_role_attachment" {
 ###############################################################
 
 # Inline policy for S3 permissions using jsonencode
-data "aws_iam_policy_document" "lambda_s3_policy_doc" {
+data "aws_iam_policy_document" "lambda_s3_and_sqs_policy_doc" {
   statement {
-    sid = "RecipesS3PermissionsForLambda"
+    sid = "RecipesS3AndSQSPermissionsForLambda"
     
     effect = "Allow"
 
@@ -74,7 +74,9 @@ data "aws_iam_policy_document" "lambda_s3_policy_doc" {
     ]
 
     resources = [
-      aws_sqs_queue.sqs_to_scrape_queue.arn
+      aws_sqs_queue.sqs_to_scrape_queue.arn,
+      aws_sqs_queue.sqs_csv_chunk_queue.arn,
+      aws_sqs_queue.sqs_process_staged_queue.arn,
       ]
   }
 
@@ -82,9 +84,9 @@ data "aws_iam_policy_document" "lambda_s3_policy_doc" {
 
 # Make an IAM policy from the IAM policy document for S3/SQS permissions for sqs_consumer lambda
 resource "aws_iam_policy" "lambda_s3_policy" {
-  name_prefix = "recipes-lambda-s3-policy"
-  description = "IAM Policy for Recipes Lambda to interact with S3"
-  policy      = data.aws_iam_policy_document.lambda_s3_policy_doc.json
+  name_prefix = "recipe-lambdas-s3-and-sqs-policy"
+  description = "IAM Policy for Recipes Lambda to interact with S3 and SQS"
+  policy      = data.aws_iam_policy_document.lambda_s3_and_sqs_policy_doc.json
   tags = {
     name              = local.name_tag
     resource_category = "iam"
@@ -103,7 +105,7 @@ resource "aws_iam_role_policy_attachment" "lambda_s3_policy_attachment" {
 ###############################################################
 
 resource "aws_iam_policy" "logging_policy" {
-  name_prefix   = "recipe-scraper-lambda-logging-policy"
+  name_prefix   = "recipe-lambdas-logging-policy"
   policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -169,50 +171,53 @@ resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
   policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
 }
 
-###################################################
-# Lambda (sqs_consumer) IAM Policy for S3/SQS queue
-###################################################
+# ###################################################
+# # Lambda (sqs_consumer) IAM Policy for S3/SQS queue
+# ###################################################
 
-data "aws_iam_policy_document" "sqs_consumer_lambda_policy_doc" {
+# data "aws_iam_policy_document" "sqs_consumer_lambda_policy_doc" {
 
-  statement {
-    sid = "SQSReadDeletePermissions"
+#   statement {
+#     sid = "SQSReadDeletePermissions"
     
-    effect = "Allow"
+#     effect = "Allow"
 
-    actions = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes",
-    ]
+#     actions = [
+#           "sqs:ReceiveMessage",
+#           "sqs:DeleteMessage",
+#           "sqs:GetQueueAttributes",
+#     ]
 
-    resources = [
-      aws_sqs_queue.sqs_to_scrape_queue.arn
-      ]
-  }
-}
+#     resources = [
+#       aws_sqs_queue.sqs_to_scrape_queue.arn
+#       ]
+#   }
+# }
 
-# Make an IAM policy from the IAM policy document for S3/SQS permissions for sqs_consumer lambda
-resource "aws_iam_policy" "sqs_consumer_lambda_policy" {
-  name        = "recipe-sqs-consumer-lambda-policy"
-  description = "Recipe scraper policy for sqs consumer Lambda to interact with S3 and SQS queue"
-  policy      = data.aws_iam_policy_document.sqs_consumer_lambda_policy_doc.json
-  tags = {
-    name              = local.name_tag
-    resource_category = "iam"
-  }
-}
+# # Make an IAM policy from the IAM policy document for S3/SQS permissions for sqs_consumer lambda
+# resource "aws_iam_policy" "sqs_consumer_lambda_policy" {
+#   name        = "recipe-sqs-consumer-lambda-policy"
+#   description = "Recipe scraper policy for sqs consumer Lambda to interact with S3 and SQS queue"
+#   policy      = data.aws_iam_policy_document.sqs_consumer_lambda_policy_doc.json
+#   tags = {
+#     name              = local.name_tag
+#     resource_category = "iam"
+#   }
+# }
 
-# Attach the lambda to SQS IAM policy to the lambda role
-resource "aws_iam_role_policy_attachment" "sqs_consumer_lambda_policy_attachment" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.sqs_consumer_lambda_policy.arn
-  # policy_arn = data.aws_iam_policy_document.sqs_consumer_lambda_policy.json
-}
+# # Attach the lambda to SQS IAM policy to the lambda role
+# resource "aws_iam_role_policy_attachment" "sqs_consumer_lambda_policy_attachment" {
+#   role       = aws_iam_role.lambda_role.name
+#   policy_arn = aws_iam_policy.sqs_consumer_lambda_policy.arn
+#   # policy_arn = data.aws_iam_policy_document.sqs_consumer_lambda_policy.json
+# }
 
+# ######################################################################
+# # Lambda (AWSLambdaBasicExecutionRole - AWS managed role) IAM Policy #
+# ######################################################################
 
-# Attach necessary policies to the IAM role
-resource "aws_iam_role_policy_attachment" "sqs_consumer_lambda_basic_exec_policy_attachment" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
+# # Attach necessary policies to the IAM role
+# resource "aws_iam_role_policy_attachment" "lambda_basic_exec_policy_attachment" {
+#   role       = aws_iam_role.lambda_role.name
+#   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+# }

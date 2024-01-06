@@ -198,7 +198,23 @@ resource "aws_s3_bucket" "lambda_s3_bucket" {
   bucket = var.lambda_s3_bucket_name
 }
 
-# s3 object for lambda code process_staging function
+# S3 object for Lambda function code for chunking uploaded CSV files and sending into SQS queue
+resource "aws_s3_object" "chunk_csv_lambda_code_object" {
+  bucket = aws_s3_bucket.lambda_s3_bucket.bucket
+  key    = var.chunk_csv_lambda_function_zip_file
+  source = local.chunk_csv_lambda_zip
+  etag   = filemd5(local.chunk_csv_lambda_zip)
+}
+
+# S3 object for Lambda function code for chunking uploaded CSV files and sending into SQS queue
+resource "aws_s3_object" "send_json_lambda_code_object" {
+  bucket = aws_s3_bucket.lambda_s3_bucket.bucket
+  key    = var.send_json_recipes_lambda_function_zip_file
+  source = local.send_json_lambda_zip
+  etag   = filemd5(local.send_json_lambda_zip)
+}
+
+# S3 object for Lambda function code for consuming SQS queue and scraping internet for recipes and storing in S3 bucket
 resource "aws_s3_object" "recipe_scraper_lambda_code_object" {
   bucket = aws_s3_bucket.lambda_s3_bucket.bucket
   key    = var.recipe_scraper_lambda_zip_filename
