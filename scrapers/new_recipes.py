@@ -24,7 +24,9 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
         "https://www.allrecipes.com/recipes/22908/everyday-cooking/special-collections/new/", 
         "https://food52.com/recipes/newest", 
         "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes", 
-        "https://www.hellofresh.com/recipes/most-recent-recipes"
+        "https://www.hellofresh.com/recipes/most-recent-recipes", 
+        "http://www.afghankitchenrecipes.com/recent-recipes/", 
+        "https://www.baking-sense.com/all-blog-posts/"
     ]
 
     if random_sleeps:
@@ -38,7 +40,8 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
     food52_pattern = re.compile(r'/recipes/([^/]+)')
     nytimes_pattern = re.compile(r'/recipes/\d+-[a-z-]+')
     hellofresh_pattern = re.compile(r'https://www\.hellofresh\.com/recipes/[\d\w-]+-\w{24}')
-
+    afghankitchen_pattern = re.compile(r'http://www\.afghankitchenrecipes\.com/recipe/[\w-]+/')
+    bakingsense_pattern = re.compile(r'https://www\.baking-sense\.com/\d+/\d+/\d+/[\w-]+/')
 
     for base_url in base_urls:
         html = httpx.get(url=base_url, headers=headers).content
@@ -48,17 +51,23 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
         links = [a["href"] for a in soup.find_all("a", href=True)]
 
         if "allrecipes" in base_url:
-            # Filter out non-recipe links for Allrecipes
+            # Filter out non-recipe links for All Recipes
             recipe_links = [url for url in links if allrecipes_pattern.match(url)]
         elif "food52" in base_url:
-            # Filter out non-recipe links for Food52 and concatenate the string
+            # Filter out non-recipe links for Food 52 and concatenate the string
             recipe_links = [f"https://www.food52.com{url}" for url in links if food52_pattern.match(url)]
         elif "nytimes" in base_url:
-            # Filter out non-recipe links for Allrecipes
+            # Filter out non-recipe links for NY Times and concatenate the string
             recipe_links = [f"https://cooking.nytimes.com{url}" for url in links if nytimes_pattern.match(url)]
-        if "hellofresh" in base_url:
-            # Filter out non-recipe links for Allrecipes
+        elif "hellofresh" in base_url:
+            # Filter out non-recipe links for Hello Fresh
             recipe_links = [url for url in links if hellofresh_pattern.match(url)]
+        elif "afghankitchenrecipes" in base_url:
+            # Filter out non-recipe links for Afghan Kitchen Recipes
+            recipe_links = [url for url in links if afghankitchen_pattern.match(url)]
+        elif "baking-sense" in base_url:
+            # Filter out non-recipe links for All Recipes
+            recipe_links = [url for url in links if bakingsense_pattern.match(url)]
 
         # Add the filtered links to the result
         filtered_urls.extend(recipe_links)
@@ -71,3 +80,5 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
 new_urls = get_new_urls()
 print(len(new_urls))
 print(new_urls)
+
+
