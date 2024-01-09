@@ -21,12 +21,13 @@ def get_new_urls(random_sleeps=True, lower_sleep=2, upper_sleep=5):
 
     # Base URLs with a list of recipes on the page
     base_urls = [
-        "https://www.allrecipes.com/recipes/22908/everyday-cooking/special-collections/new/", 
-        "https://food52.com/recipes/newest", 
-        "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes", 
-        "https://www.hellofresh.com/recipes/most-recent-recipes", 
-        "http://www.afghankitchenrecipes.com/recent-recipes/", 
-        "https://www.baking-sense.com/all-blog-posts/"
+        "https://www.allrecipes.com/recipes/22908/everyday-cooking/special-collections/new/", # Not updated often
+        "https://food52.com/recipes/newest", # Updated daily
+        "https://cooking.nytimes.com/68861692-nyt-cooking/32998034-our-newest-recipes", # Updated every 2-3 days
+        "https://www.hellofresh.com/recipes/most-recent-recipes", # Updated weekly?
+        "http://www.afghankitchenrecipes.com/recent-recipes/", # Not updated often
+        "https://www.baking-sense.com/all-blog-posts/", # New posts 2-3 times per month
+        "https://www.bbc.co.uk/food/seasons/" # List of recipes by month
     ]
 
     if random_sleeps:
