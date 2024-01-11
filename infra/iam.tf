@@ -68,6 +68,7 @@ data "aws_iam_policy_document" "lambda_s3_and_sqs_policy_doc" {
     effect = "Allow"
 
     actions = [
+          "sqs:SendMessage",
           "sqs:ReceiveMessage",
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes",

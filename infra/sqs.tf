@@ -28,7 +28,7 @@ resource "aws_sqs_queue_policy" "sqs_csv_chunk_queue_policy" {
         Condition = {
           ArnEquals = {
             # "aws:SourceArn" = aws_s3_bucket.raw_s3_bucket.arn
-            "aws:SourceArn" = aws_lambda_function.chunk_csv_lambda.arn
+            "aws:SourceArn" = aws_lambda_function.chunk_csv_lambda_function.arn
           }
         }
       }
@@ -47,7 +47,9 @@ resource "aws_sqs_queue" "sqs_to_scrape_queue" {
   max_message_size           = 2048
   message_retention_seconds  = 518400 # 6 day retention period
   receive_wait_time_seconds  = 10
-  visibility_timeout_seconds = 3200   # 6 times the Lambda function timeout (600 seconds) to allow for retries (source: https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+  visibility_timeout_seconds = 4720   # Atleast 6 times the Lambda function timeout (750 seconds) to allow 
+                                        # for retries + maximum_batching_window_in_seconds (20 seconds)
+                                        #  (source: https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
   # policy = data.aws_iam_policy_document.sqs_queue_policy_doc.json
 
 }
@@ -66,7 +68,7 @@ resource "aws_sqs_queue_policy" "sqs_to_scrape_queue_policy" {
         Condition = {
           ArnEquals = {
             "aws:SourceArn" = aws_s3_bucket.raw_s3_bucket.arn,
-            "aws:SourceArn" = aws_lambda_function.send_json_recipes_lambda.arn
+            "aws:SourceArn" = aws_lambda_function.send_json_lambda_function.arn
           }
         }
       }
@@ -88,7 +90,8 @@ resource "aws_sqs_queue" "sqs_process_staged_queue" {
   max_message_size           = 2048
   message_retention_seconds  = 518400 # 6 day retention period
   receive_wait_time_seconds  = 10
-  visibility_timeout_seconds = 3200   # 6 times the Lambda function timeout (600 seconds) to allow for retries (source: https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html)
+  visibility_timeout_seconds = 1020   # Atleast 6 times the Lambda function timeout (150 seconds) to allow 
+                                        # for retries + maximum_batching_window_in_seconds (20 seconds)
   # policy = data.aws_iam_policy_document.sqs_queue_policy_doc.json
 
 }

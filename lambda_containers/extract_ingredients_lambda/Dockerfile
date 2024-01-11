@@ -71,8 +71,14 @@ COPY extract_ingredients_lambda.py ./
 # Create a model directory
 RUN mkdir model
 
+# set TRANSFORMERS_CACHE to /tmp
+ENV TRANSFORMERS_CACHE=/tmp
+
 # Download and save the model from HuggingFace
 RUN python3 - <<EOF
+import os
+os.environ["TRANSFORMERS_CACHE"] = "/tmp"
+
 from transformers import DistilBertForTokenClassification
 
 # HuggingFace path to model

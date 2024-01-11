@@ -6,6 +6,9 @@ import time
 import re
 import ast
 
+# Set TRANSFORMERS_CACHE to /tmp
+os.environ["TRANSFORMERS_CACHE"] = "/tmp"
+
 import pandas as pd
 import numpy as np 
 
@@ -196,7 +199,8 @@ def extract_ingredients_from_s3_event(message):
     print(f"=====================")
 
     # s3_event = message["body"]
-    s3_event = json.loads(message)["body"]
+    s3_event = json.loads(message["body"])
+    # s3_event = json.loads(message)["body"]
 
     print(f"=====================")
     print(f'---->\n Value of s3_event: {s3_event}')
@@ -222,7 +226,7 @@ def extract_ingredients_from_s3_event(message):
     # key of ingredients list in JSON object
     ingredients_key = "ingredients"
     # ingredients_key = "scraped_ingredients"
-
+    
     # extract food tags from ingredients list using FoodModel
     food_tags = generate_tags(model, s3_json[ingredients_key])
 
@@ -256,7 +260,7 @@ def extract_ingredients_from_s3_event(message):
     # final_json = {key.replace("scraped_", ""): value for key, value in final_json.items()}
 
     return s3_json
-
+    
 # def extract_ingredients_from_s3_event2(message):
 #     # example_json = {
 #     #     'uid': 'spanishsquash_906928', 
@@ -423,6 +427,43 @@ def sanitize_json(json_obj):
 
     return json_obj
 
+
+def get_csv_from_s3(message):
+
+    print(f'---->\n Value of message: {message}')
+
+    # s3_event = message["body"]
+    s3_event = json.loads(message["body"])
+    # s3_event = json.loads(message)["body"]
+
+    print(f'---->\n Value of s3_event: {s3_event}')
+
+
+    # # Extract the S3 bucket and the filename from the S3 event notification JSON object
+    S3_BUCKET    = s3_event['Records'][0]['s3']['bucket']['name']
+    S3_FILE_NAME = s3_event['Records'][0]['s3']['object']['key']
+
+    print(f"- S3_BUCKET: {S3_BUCKET}")
+    print(f"- S3_FILE_NAME: {S3_FILE_NAME}")
+
+    print(f"Gathering CSV file from S3...")
+    
+    try:
+
+        # get the object from S3
+        s3_obj = s3.get_object(Bucket=S3_BUCKET, Key=S3_FILE_NAME)
+    except Exception as e:
+        print(f"Error getting CSV file from S3: {e}")
+        # Handle the exception here, or raise a specific error
+        raise Exception(f"Error processing element: {e}")
+
+    # read the CSV file into a pandas dataframe
+    csv_df = pd.read_csv(s3_obj["Body"])
+
+    print(f"csv_df.shape: {csv_df.shape}")
+
+    return csv_df
+
 # lambda handler function
 def extract_ingredients_lambda(event, context):
 
@@ -438,16 +479,39 @@ def extract_ingredients_lambda(event, context):
         message_count += 1
         print(f"==== PROCESSING MESSAGE: {message_count} ====")
         # print(f"message {message_count}: {message}")
-        # try:
-        output_json = extract_ingredients_from_s3_event(message)
-        output_data.append(output_json)
+        try:
 
-        # except Exception as e:
-        #     batch_item_failures.append({"itemIdentifier": message['messageId']})
+            s3_csv = get_csv_from_s3(message)
+            
+            print(f"s3_csv.shape: {s3_csv.shape}")
 
+            output_data.append(s3_csv)
+
+            # output_json = extract_ingredients_from_s3_event(message)
+            # output_data.append(output_json)
+
+        except Exception as e:
+            print(f"Exception raised from messageId {message['messageId']}\n: {e}")
+            batch_item_failures.append({"itemIdentifier": message['messageId']})
+
+
+    print(f"Concating output_data...")
+    print(f"len(output_data): {len(output_data)}")
 
     # Convert list of dictionaries to pandas dataframe
-    df = pd.DataFrame(output_data)
+    df = pd.concat(output_data)
+    
+    # # Convert list of dictionaries to pandas dataframe
+    # df = pd.DataFrame(output_data)
+
+    print(f"df.shape: {df.shape}")
+    print(f"df: {df}")
+    print(f"Applying FoodModel to generate ingredient tags...")
+
+    df['ingredients'] = df['ingredients'].apply(ast.literal_eval)
+    
+    # Add ingredient tags to dataframe
+    df["ingredient_tags"] = df["ingredients"].apply(lambda x: generate_tags(model, x))
 
     # # Create a sample DataFrame
     # data = {'B': [1, 2, 3], 'A': [4, 5, 6], 'C': [7, 8, 9]}
@@ -476,7 +540,6 @@ def extract_ingredients_lambda(event, context):
     print(f"sqs_batch_response: {sqs_batch_response}")
 
     return sqs_batch_response
-
 
 # s3_events = [{
 #   "Records": [

@@ -40,6 +40,7 @@ resource "aws_s3_bucket_notification" "stage_s3_bucket_notification" {
   queue {
     queue_arn     = aws_sqs_queue.sqs_process_staged_queue.arn
     events        = ["s3:ObjectCreated:*"]
-    filter_suffix = ".json"
+    # filter_suffix = ".json"
+    filter_suffix = ".csv"
   }
 }

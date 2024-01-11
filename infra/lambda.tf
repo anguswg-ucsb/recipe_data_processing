@@ -137,8 +137,15 @@ resource "aws_lambda_function" "recipe_scraper_lambda_function" {
   architectures    = ["x86_64"]
   # architectures    = ["arm64"]
 
+  # # Pandas lambda layer
+  # layers = ["arn:aws:lambda:us-west-1:336392948345:layer:AWSSDKPandas-Python311:4"]
+  # # layers = ["arn:aws:lambda:us-west-1:336392948345:layer:AWSSDKPandas-Python39:14"]
+
   # timeout in seconds
-  timeout         = 500
+  timeout         = 750
+
+  # memory in MB
+  memory_size     = 256
 
   # Only allow for a maximum of 8 Lambdas to be run concurrently
   reserved_concurrent_executions = 8
@@ -190,7 +197,8 @@ resource "aws_lambda_function" "recipe_scraper_lambda_function" {
 resource "aws_lambda_event_source_mapping" "recipe_scraper_lambda_sqs_event_source_mapping" {
   event_source_arn = aws_sqs_queue.sqs_to_scrape_queue.arn
   function_name    = aws_lambda_function.recipe_scraper_lambda_function.function_name
-  batch_size       = 2
+  batch_size       = 40
+  maximum_batching_window_in_seconds = 20      # (max time to wait for batch to fill up)
   function_response_types = ["ReportBatchItemFailures"]
   depends_on = [
     aws_lambda_function.recipe_scraper_lambda_function,
@@ -216,32 +224,41 @@ resource "aws_lambda_permission" "allow_sqs_invoke_recipe_scraper_lambda" {
 # adds to new found data to the original JSON, then uploads this to the staging bucket
 resource "aws_lambda_function" "extract_ingredients_lambda_function" {
   function_name    = var.extract_ingredients_lambda_function_name
-  image_uri        = "${data.aws_ecr_repository.lambda_ecr_repository.repository_url}:latest"
+  # image_uri        = "${data.aws_ecr_repository.lambda_ecr_repository.repository_url}:latest"
   # image_uri        = data.aws_ecr_repository.lambda_ecr_repository.repository_url
+  image_uri        = "${var.lambda_ecr_repository_url}:latest"
+  role             = aws_iam_role.lambda_role.arn
   package_type     = "Image"
   architectures    = ["x86_64"]
   # architectures    = ["arm64"]
   # handler          = "extract_ingredients_lambda.extract_ingredients_lambda.extract_ingredients_lambda"
 
   # timeout in seconds
-  timeout         = 300
+  timeout         = 150
 
-  # Only allow for a maximum of 50 Lambdas to be run concurrently
-  reserved_concurrent_executions = 50
+  # # memory in MB
+  memory_size     = 1856
+
+  ephemeral_storage {
+    size = 5120
+  }
+
+  # Only allow for a maximum of 5 Lambdas to be run concurrently
+  reserved_concurrent_executions = 5
   
   # Attach the Lambda function to the CloudWatch Logs group
   environment {
     variables = {
         CW_LOG_GROUP         = aws_cloudwatch_log_group.extract_ingredients_lambda_log_group.name,
-        OUTPUT_S3_BUCKET     = aws_s3_bucket.output_s3_bucket.bucket,
+        OUTPUT_S3_BUCKET     = data.aws_s3_bucket.output_s3_bucket.bucket,
     }
   }
 
   depends_on = [
-    aws_ecr_repository.lambda_ecr_repository,
+    # data.aws_ecr_repository.lambda_ecr_repository,
     # aws_iam_role_policy_attachment.lambda_logs_policy_attachment,
     aws_cloudwatch_log_group.extract_ingredients_lambda_log_group,
-    aws_s3_bucket.output_s3_bucket,
+    data.aws_s3_bucket.output_s3_bucket,
   ]
   
   tags = {
@@ -260,27 +277,28 @@ resource "aws_lambda_function" "extract_ingredients_lambda_function" {
 # }
 
 
-######################################################################################
-# Lambda SQS Event Source Mapping (map recipe scraper lambda to to_scrape SQS queue) #
-######################################################################################
+# ######################################################################################
+# # Lambda SQS Event Source Mapping (map recipe scraper lambda to to_scrape SQS queue) #
+# ######################################################################################
 
 # Lambda SQS Event Source Mapping
-resource "aws_lambda_event_source_mapping" "sqs_consumer_lambda_event_source_mapping" {
-  event_source_arn = aws_sqs_queue.sqs_to_scrape_queue.arn
-  function_name    = aws_lambda_function.recipe_scraper_lambda_function.function_name
-  batch_size       = 2
+resource "aws_lambda_event_source_mapping" "extract_ingredients_lambda_event_source_mapping" {
+  event_source_arn = aws_sqs_queue.sqs_process_staged_queue.arn
+  function_name    = aws_lambda_function.extract_ingredients_lambda_function.function_name
+  batch_size       = 10                        # (10 messages each referencing a CSV with ~30-40 rows)
+  maximum_batching_window_in_seconds = 20      # (max time to wait for batch to fill up)
   function_response_types = ["ReportBatchItemFailures"]
   depends_on = [
-    aws_lambda_function.recipe_scraper_lambda_function,
-    aws_sqs_queue.sqs_to_scrape_queue,
+    aws_lambda_function.extract_ingredients_lambda_function,
+    aws_sqs_queue.sqs_process_staged_queue,
   ]
 }
 
-# Allow the "to scrape" SQS queue to invoke the Recipe Scraper Lambda function
-resource "aws_lambda_permission" "allow_sqs_invoke_recipe_scraper_lambda" {
-  statement_id  = "AllowSQSInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = "${aws_lambda_function.recipe_scraper_lambda_function.arn}"
-  principal = "sqs.amazonaws.com"
-  source_arn = "${aws_sqs_queue.sqs_to_scrape_queue.arn}"
-}
+# # Allow the "to scrape" SQS queue to invoke the Recipe Scraper Lambda function
+# resource "aws_lambda_permission" "allow_sqs_invoke_recipe_scraper_lambda" {
+#   statement_id  = "AllowSQSInvoke"
+#   action        = "lambda:InvokeFunction"
+#   function_name = "${aws_lambda_function.recipe_scraper_lambda_function.arn}"
+#   principal = "sqs.amazonaws.com"
+#   source_arn = "${aws_sqs_queue.sqs_to_scrape_queue.arn}"
+# }

@@ -2,11 +2,20 @@
 # AWS ECR for Lambda container image #
 ######################################
 
-# ECR Repo for Extract ingredients Docker image 
+# # # ECR Repo for Extract ingredients Docker image 
 data "aws_ecr_repository" "lambda_ecr_repository" {
   name = var.lambda_ecr_repository_name
 }
 
+# terraform import aws_ecr_repository.lambda_ecr_repository extract-ingredients-lambda-repository
+
+output "EcrRepoURL" {
+  value = "${var.lambda_ecr_repository_url}"
+}
+
+output "OUTPUTS3BucketName" {
+  value = "${var.output_s3_bucket_name}"
+}
 # # Create an ECR repository for the Lambda container image
 # resource "aws_ecr_repository" "lambda_ecr_repository" {
 #   name = var.lambda_ecr_repository_name

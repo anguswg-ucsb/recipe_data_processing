@@ -5,9 +5,11 @@
 
 # Cloudwatch log group for 'raw_recipes_lambda_log_group' Python lambda function
 resource "aws_cloudwatch_log_group" "chunk_csv_lambda_log_group" {
-  name_prefix              = "/aws/lambda/${var.chunk_csv_lambda_function_name}"
+  # name_prefix              = "/aws/lambda/${var.chunk_csv_lambda_function_name}"
+  name              = "/aws/lambda/${var.chunk_csv_lambda_function_name}"
   retention_in_days = 14
-  skip_destroy = true
+  skip_destroy = false
+  # skip_destroy = true
 }
 
 ######################################
@@ -16,9 +18,11 @@ resource "aws_cloudwatch_log_group" "chunk_csv_lambda_log_group" {
 
 # Cloudwatch log group for 'raw_recipes_lambda_log_group' Python lambda function
 resource "aws_cloudwatch_log_group" "send_json_recipes_lambda_log_group" {
-  name_prefix              = "/aws/lambda/${var.send_json_recipes_lambda_function_name}"
+  # name_prefix              = "/aws/lambda/${var.send_json_recipes_lambda_function_name}"
+  name              = "/aws/lambda/${var.send_json_recipes_lambda_function_name}"
   retention_in_days = 14
-  skip_destroy = true
+  skip_destroy = false
+  # skip_destroy = true
 }
 
 
@@ -28,9 +32,11 @@ resource "aws_cloudwatch_log_group" "send_json_recipes_lambda_log_group" {
 
 # Cloudwatch log group for 'raw_recipes_lambda_log_group' Python lambda function
 resource "aws_cloudwatch_log_group" "raw_recipes_lambda_log_group" {
-  name_prefix              = "/aws/lambda/${var.scraper_lambda_function_name}"
+  # name_prefix              = "/aws/lambda/${var.scraper_lambda_function_name}"
+  name             = "/aws/lambda/${var.scraper_lambda_function_name}"
   retention_in_days = 14
-  skip_destroy = true
+  skip_destroy = false
+  # skip_destroy = true
 }
 
 #################################################
@@ -39,8 +45,10 @@ resource "aws_cloudwatch_log_group" "raw_recipes_lambda_log_group" {
 
 # Cloudwatch log group for 'raw_recipes_lambda_log_group' Python lambda function
 resource "aws_cloudwatch_log_group" "extract_ingredients_lambda_log_group" {
-  name_prefix              = "/aws/lambda/${var.extract_ingredients_lambda_function_name}"
+  # name_prefix              = "/aws/lambda/${var.extract_ingredients_lambda_function_name}"
+  name              = "/aws/lambda/${var.extract_ingredients_lambda_function_name}"
   retention_in_days = 14
-  skip_destroy = true
+  skip_destroy = false
+  # skip_destroy = true
 }
 

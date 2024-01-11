@@ -54,13 +54,108 @@ url_df = processed_recipes[["uid", "url"]]
 # save URL dataframe to csv
 url_path = '/Users/anguswatters/Desktop/recipe_urls/url_dataset_recipeNLG.csv'
 
-# save to csv
-url_df.to_csv(url_path, index=False)
 # save URL dataframe to csv
-url_path = '/Users/anguswatters/Desktop/recipe_urls/url_test_dataset_recipeNLG.csv'
+url_path = '/Users/anguswatters/Desktop/recipe_urls/url_dataset_recipeNLG.csv'
 
 # save to csv
-url_df.head(15).to_csv('/Users/anguswatters/Desktop/recipe_urls/url_test_dataset_recipeNLG.csv', index=False)
+url_df.to_csv(url_path, index=False)
+
+# save URL dataframe to csv
+test_url_path = '/Users/anguswatters/Desktop/recipe_urls/url_test_dataset_recipeNLG.csv'
+
+# save to csv
+url_df.head(42)
+url_df.head(42).to_csv(test_url_path, index=False)
+processed_recipes.columns
+
+test_model_df = recipes[["title", "ingredients"]].head(1000)
+test_model_df['ingredients'] = test_model_df['ingredients'].apply(ast.literal_eval)
+
+# import model interface from Hugging Face model 
+from food_extractor.food_model import FoodModel
+
+# path to saved distilbert FoodModel from Hugging Face
+model_path = './model/chambliss-distilbert-for-food-extraction'
+# model_path = './extract_ingredients_lambda/model/chambliss-distilbert-for-food-extraction'
+
+# Load the model from HuggingFace
+# model = FoodModel(model_path)
+model = FoodModel("chambliss/distilbert-for-food-extraction")
+
+# # function to extract food ingredients from a list of ingredients using the FoodModel
+def generate_tags(model, ingredient_list):
+
+    food_tags = []
+
+    input = " ... ".join(ingredient_list)
+
+    model_output = model.extract_foods(input)
+
+    for food in model_output[0]["Ingredient"]:
+        food_tags.append(food['text'].lower())
+        
+    return food_tags
+
+import time
+# time_result = {"nrows": [], "time": []}
+# row_ranges = range(1, 1100, 100)
+row_ranges = range(1, 900, 100)
+time_result = {i : 0 for i in row_ranges}
+
+for i in row_ranges:
+    print(f"i: {i}")
+    print(f"Testing first {i} rows...")
+    
+    test_model_df = recipes[["title", "ingredients"]].head(i)
+    test_model_df['ingredients'] = test_model_df['ingredients'].apply(ast.literal_eval)
+
+    # Record the start time
+    start_time = time.time()
+
+    # Your code to be timed
+    test_model_df["food_tags"] = test_model_df["ingredients"].apply(lambda x: generate_tags(model, x))
+
+    # Record the end time
+    end_time = time.time()
+
+    # Calculate the elapsed time
+    elapsed_time = end_time - start_time
+
+    elapsed_time = round(elapsed_time, 2)
+
+    print(f"Elapsed time: {elapsed_time} seconds")
+    
+    time_result[i] = elapsed_time
+    print(f"time_result: {time_result}")
+    print(f"===" * 5)
+
+import matplotlib.pyplot as plt
+
+# Extract keys and values from the dictionary
+keys = list(time_result.keys())
+values = list(time_result.values())
+
+# Create a scatter plot
+plt.scatter(keys, values)
+
+# Add labels and title
+plt.xlabel('Keys')
+plt.ylabel('Values')
+plt.title('Scatter Plot of Dictionary Values')
+
+# Show the plot
+plt.show()
+
+print(f"Elapsed time: {elapsed_time} seconds")
+
+test_model_df["food_tags"] = test_model_df["ingredients"].apply(lambda x: generate_tags(model, x))
+test_model_df
+test_model_df["food_tags"]
+test_model_df["ingredients"].values.tolist()[0]
+1000000/1000
+
+test_model_df
+test_model_df["food_tags"] = test_model_df["ingredients"].apply(lambda x: generate_tags(model, x))
 
 # Iterate over rows, convert each row to a dictionary, and save as JSON
 for index, row in processed_recipes.iterrows():

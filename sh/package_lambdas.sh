@@ -72,6 +72,12 @@ for SUBDIR in "$BASE_DIR/$APP_DIR"/*; do
             --only-binary=:all: --upgrade \
             -r "$SUBDIR/requirements.txt"
         
+        # Remove unwanted directories (tests/, docs/, examples/, __pycache__/)
+        find "$PKG_DIR" -type d -name "tests" -exec rm -rf {} +
+        find "$PKG_DIR" -type d -name "docs" -exec rm -rf {} +
+        find "$PKG_DIR" -type d -name "examples" -exec rm -rf {} +
+        find "$PKG_DIR" -type d -name "__pycache__" -exec rm -rf {} +
+
         # Go into the PKG_DIR directory
         cd "$PKG_DIR" 
 
@@ -86,9 +92,13 @@ for SUBDIR in "$BASE_DIR/$APP_DIR"/*; do
         cd "$BASE_DIR/$APP_DIR/"
 
         echo "Updated $ZIP_FILE with $DIR_NAME contents"
-        
+
+        # find . -type d -name __pycache__ -exec rm -r {} \+
+
         # Add the contents of the given lambdas/ subdirectory (DIR_NAME) to the ZIP file
         # zip -g "$ZIP_FILE" -r "$DIR_NAME"
+        # zip -g "$ZIP_FILE" -r "$DIR_NAME" -x "$DIR_NAME/config.py" -x "*/__pycache__/*"
+        # zip -g "$ZIP_FILE" -r "$DIR_NAME" -x "$DIR_NAME/config.py" -x "**/__pycache__/"
         zip -g "$ZIP_FILE" -r "$DIR_NAME" -x "$DIR_NAME/config.py"
 
         echo "Removing $PKG_DIR"

@@ -20,7 +20,7 @@ provider "aws" {
 
 locals {
     chunk_csv_lambda_zip = "../deploy/chunk_csv_lambda.zip"
-    send_json_lambda_zip = "../deploy/send_json_lambda.zip"
+    send_json_lambda_zip = "../deploy/send_json_recipes_lambda.zip"
     recipe_scraper_lambda_zip = "../deploy/recipe_scraper_lambda.zip"
     name_tag = "recipe-scraper"
 }
